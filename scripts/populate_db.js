@@ -1,18 +1,16 @@
 const mongoose = require('mongoose');
-require('dotenv').config();
+require('dotenv').config({ path: '../.env' });
 
-const Vehicle = require('./models/Vehicle');
-const FuelPrice = require('./models/FuelPrice');
+const Vehicle = require('../models/Vehicle');
 
 async function populateDatabase() {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
     console.log('✅ Connected to MongoDB');
 
-    // Clear existing data
+    // Clear existing vehicles
     await Vehicle.deleteMany({});
-    await FuelPrice.deleteMany({});
-    console.log('🗑️ Cleared existing data');
+    console.log('🗑️ Cleared existing vehicles');
 
     // Add vehicles
     const vehicles = [
@@ -41,6 +39,22 @@ async function populateDatabase() {
         vehicleClass: 'car',
       },
       {
+        manufacturer: 'Mercedes',
+        model: 'C220d',
+        year: 2021,
+        fuelType: 'diesel',
+        fuelConsumption: { city: 5.8, highway: 4.3, combined: 5.0 },
+        vehicleClass: 'car',
+      },
+      {
+        manufacturer: 'Audi',
+        model: 'A4 TDI',
+        year: 2020,
+        fuelType: 'diesel',
+        fuelConsumption: { city: 5.9, highway: 4.4, combined: 5.1 },
+        vehicleClass: 'car',
+      },
+      {
         manufacturer: 'Tesla',
         model: 'Model 3',
         year: 2023,
@@ -48,24 +62,30 @@ async function populateDatabase() {
         fuelConsumption: { city: 15.0, highway: 18.0, combined: 16.5 },
         vehicleClass: 'car',
       },
+      {
+        manufacturer: 'Ford',
+        model: 'Focus',
+        year: 2019,
+        fuelType: 'petrol_95',
+        fuelConsumption: { city: 6.5, highway: 4.9, combined: 5.6 },
+        vehicleClass: 'car',
+      },
+      {
+        manufacturer: 'Volkswagen',
+        model: 'Passat',
+        year: 2021,
+        fuelType: 'diesel',
+        fuelConsumption: { city: 6.2, highway: 4.6, combined: 5.3 },
+        vehicleClass: 'car',
+      },
     ];
 
     await Vehicle.insertMany(vehicles);
-    console.log('✅ Vehicles added');
-
-    // Add fuel prices
-    const fuelPrices = [
-      { country: 'LT', fuelType: 'diesel', pricePerLiter: 1.42, currency: 'EUR', updatedAt: new Date() },
-      { country: 'LT', fuelType: 'petrol_95', pricePerLiter: 1.52, currency: 'EUR', updatedAt: new Date() },
-      { country: 'PL', fuelType: 'diesel', pricePerLiter: 1.35, currency: 'EUR', updatedAt: new Date() },
-      { country: 'PL', fuelType: 'petrol_95', pricePerLiter: 1.44, currency: 'EUR', updatedAt: new Date() },
-      { country: 'DE', fuelType: 'diesel', pricePerLiter: 1.55, currency: 'EUR', updatedAt: new Date() },
-    ];
-
-    await FuelPrice.insertMany(fuelPrices);
-    console.log('✅ Fuel prices added');
+    console.log(`✅ ${vehicles.length} vehicles added`);
 
     console.log('🎉 Database populated successfully!');
+    console.log(`📊 Total: ${vehicles.length} vehicles in database`);
+
     process.exit(0);
   } catch (error) {
     console.error('❌ Error:', error);
