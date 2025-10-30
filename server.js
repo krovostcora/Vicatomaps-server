@@ -10,17 +10,22 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// MongoDB Connection - FIXED (remove deprecated options)
+// MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log('✅ MongoDB connected'))
     .catch(err => console.error('❌ MongoDB connection error:', err));
 
 // Routes
 const vehiclesRouter = require('./routes/vehicles');
-const routeCostRouter = require('./routes/routeCost'); // Add new route
-
 app.use('/api/vehicles', vehiclesRouter);
-app.use('/api/route-cost', routeCostRouter); // Add new route
+const routeCostRouter = require('./routes/routeCost');
+app.use('/api/route-cost', routeCostRouter);
+const tollRoadsRouter = require('./routes/tollRoads');
+app.use('/api/toll-roads', tollRoadsRouter);
+const fuelPricesRouter = require('./routes/fuelPrices');
+app.use('/api/fuel-prices', fuelPricesRouter);
+const mapboxRoutes = require('./routes/mapboxRoutes');
+app.use('/api', mapboxRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -39,7 +44,13 @@ app.get('/', (req, res) => {
     endpoints: {
       health: '/health',
       vehicles: '/api/vehicles',
-      routeCost: '/api/route-cost'
+      routeCost: '/api/route-cost',
+      tollRoads: '/api/toll-roads',
+      fuelPrices: '/api/fuel-prices',
+      geocode: '/api/geocode',
+      route: '/api/route',
+      tolls: '/api/tolls/calculate',
+      fuel: '/api/fuel/prices/:country'
     }
   });
 });
