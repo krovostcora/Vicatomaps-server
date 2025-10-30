@@ -1,78 +1,49 @@
 const express = require('express');
 const cors = require('cors');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
+const mongoose = require('mongoose');
 require('dotenv').config();
-
-const apiRoutes = require('./routes/api');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Security middleware
-app.use(helmet());
-app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
-  methods: ['GET', 'POST'],
-  credentials: true
-}));
+// Middleware
+app.use(cors());
+app.use(express.json());
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
-});
-app.use('/api/', limiter);
+// MongoDB Connection - FIXED (remove deprecated options)
+mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log('✅ MongoDB connected'))
+    .catch(err => console.error('❌ MongoDB connection error:', err));
 
-// Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Routes
+const vehiclesRouter = require('./routes/vehicles');
+const routeCostRouter = require('./routes/routeCost'); // Add new route
 
-// Request logging
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
-  next();
-});
+app.use('/api/vehicles', vehiclesRouter);
+app.use('/api/route-cost', routeCostRouter); // Add new route
 
-
-const vehicleRoutes = require('./routes/vehicles');
-app.use('/api/vehicles', vehicleRoutes);
-
-// Health check endpoint
+// Health check
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
   });
 });
 
-// API routes
-app.use('/api', apiRoutes);
-
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal server error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Vicatomaps API Server',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      vehicles: '/api/vehicles',
+      routeCost: '/api/route-cost'
+    }
   });
 });
 
-// Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔑 API Keys configured:`);
-  console.log(`   - Mapbox: ${process.env.MAPBOX_ACCESS_TOKEN ? '✓' : '✗'}`);
-  console.log(`   - TollGuru: ${process.env.TOLLGURU_API_KEY ? '✓' : '✗'}`);
-  console.log(`   - RapidAPI: ${process.env.RAPID_API_KEY ? '✓' : '✗'}`);
 });
-
-module.exports = app;
