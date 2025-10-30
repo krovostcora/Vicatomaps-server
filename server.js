@@ -1,99 +1,78 @@
-// routes/routeCost.js - SIMPLIFIED VERSION
 const express = require('express');
-const router = express.Router();
-const axios = require('axios');
-const NodeCache = require('node-cache');
-const Vehicle = require('./models/Vehicle');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+require('dotenv').config();
 
-const cache = new NodeCache({ stdTTL: 3600 });
+const apiRoutes = require('./routes/api');
 
-const RAPID_API_KEY = process.env.RAPID_API_KEY;
-const TOLLGURU_API_KEY = process.env.TOLLGURU_API_KEY;
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-/**
- * POST /api/route-cost/calculate
- * Body: { distance, coordinates, vehicleId }
- * Client sends route data, server calculates costs
- */
-router.post('/calculate', async (req, res) => {
-  try {
-    const { distance, coordinates, vehicleId } = req.body;
+// Security middleware
+app.use(helmet());
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+  methods: ['GET', 'POST'],
+  credentials: true
+}));
 
-    if (!distance || !coordinates || !vehicleId) {
-      return res.status(400).json({
-        error: 'Missing required fields: distance, coordinates, vehicleId'
-      });
-    }
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.'
+});
+app.use('/api/', limiter);
 
-    console.log(`💰 Calculating costs for ${distance}km route`);
+// Body parsing middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-    // 1. Get vehicle
-    const vehicle = await Vehicle.findById(vehicleId);
-    if (!vehicle) {
-      return res.status(404).json({ error: 'Vehicle not found' });
-    }
-
-    // 2. Detect countries (with caching)
-    const coordKey = `coords_${coordinates[0].lat}_${coordinates[coordinates.length-1].lat}`;
-    let countries = cache.get(coordKey);
-
-    if (!countries) {
-      countries = await detectCountries(coordinates);
-      cache.set(coordKey, countries, 21600);
-    }
-
-    // 3. Get fuel prices (with caching)
-    const fuelKey = `fuel_${countries.join('_')}_${vehicle.fuelType}`;
-    let fuelPrices = cache.get(fuelKey);
-
-    if (!fuelPrices) {
-      fuelPrices = await getFuelPrices(countries, vehicle.fuelType);
-      cache.set(fuelKey, fuelPrices, 21600);
-    }
-
-    // 4. Get toll costs (with caching)
-    const tollKey = `toll_${coordKey}_${vehicle.vehicleClass}`;
-    let tollData = cache.get(tollKey);
-
-    if (!tollData) {
-      tollData = await getTollCosts(coordinates, vehicle.vehicleClass);
-      cache.set(tollKey, tollData, 86400);
-    }
-
-    // 5. Calculate costs
-    const fuelNeeded = (distance * vehicle.fuelConsumption.highway) / 100;
-    const avgFuelPrice = Object.values(fuelPrices).reduce((a, b) => a + b, 0) / Object.keys(fuelPrices).length;
-    const fuelCost = fuelNeeded * avgFuelPrice;
-    const totalCost = fuelCost + tollData.totalCost;
-
-    const result = {
-      countries: countries,
-      costs: {
-        fuelNeeded: parseFloat(fuelNeeded.toFixed(2)),
-        fuelPrices: fuelPrices,
-        fuelCost: parseFloat(fuelCost.toFixed(2)),
-        tollCost: parseFloat(tollData.totalCost.toFixed(2)),
-        totalCost: parseFloat(totalCost.toFixed(2)),
-        currency: 'EUR'
-      },
-      tolls: tollData.tolls,
-      cached: {
-        countries: !!cache.get(coordKey),
-        fuel: !!cache.get(fuelKey),
-        tolls: !!cache.get(tollKey)
-      }
-    };
-
-    res.json(result);
-  } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ error: error.message });
-  }
+// Request logging
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  next();
 });
 
-// Keep the helper functions from before...
-async function detectCountries(coordinates) { /* same as before */ }
-async function getFuelPrices(countries, fuelType) { /* same as before */ }
-async function getTollCosts(coordinates, vehicleClass) { /* same as before */ }
 
-module.exports = router;
+const vehicleRoutes = require('./routes/vehicles');
+app.use('/api/vehicles', vehicleRoutes);
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+// API routes
+app.use('/api', apiRoutes);
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found' });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal server error',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  });
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔑 API Keys configured:`);
+  console.log(`   - Mapbox: ${process.env.MAPBOX_ACCESS_TOKEN ? '✓' : '✗'}`);
+  console.log(`   - TollGuru: ${process.env.TOLLGURU_API_KEY ? '✓' : '✗'}`);
+  console.log(`   - RapidAPI: ${process.env.RAPID_API_KEY ? '✓' : '✗'}`);
+});
+
+module.exports = app;
