@@ -15,46 +15,80 @@ mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log('✅ MongoDB connected'))
     .catch(err => console.error('❌ MongoDB connection error:', err));
 
-// Routes
-const vehiclesRouter = require('./routes/vehicles');
-app.use('/api/vehicles', vehiclesRouter);
-const routeCostRouter = require('./routes/routeCost');
-app.use('/api/route-cost', routeCostRouter);
-const tollRoadsRouter = require('./routes/tollRoads');
-app.use('/api/toll-roads', tollRoadsRouter);
-const fuelPricesRouter = require('./routes/fuelPrices');
-app.use('/api/fuel-prices', fuelPricesRouter);
+// ============================================
+// ROUTES
+// ============================================
+
+// Mapbox & External APIs (Geocoding, Routes, Tolls, Fuel Prices)
 const mapboxRoutes = require('./routes/mapboxRoutes');
 app.use('/api', mapboxRoutes);
 
-// Health check
+// User Vehicles Management
+const vehiclesRouter = require('./routes/vehicles');
+app.use('/api/vehicles', vehiclesRouter);
+
+// Route Cost Calculation
+const routeCostRouter = require('./routes/routeCost');
+app.use('/api/route-cost', routeCostRouter);
+
+// ============================================
+// HEALTH CHECK
+// ============================================
+
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
-// Root endpoint
+// ============================================
+// ROOT ENDPOINT
+// ============================================
+
 app.get('/', (req, res) => {
   res.json({
     message: 'Vicatomaps API Server',
-    version: '1.0.0',
+    version: '2.0.0',
+    description: 'Route planning with real-time tolls and fuel prices',
     endpoints: {
-      health: '/health',
-      vehicles: '/api/vehicles',
-      routeCost: '/api/route-cost',
-      tollRoads: '/api/toll-roads',
-      fuelPrices: '/api/fuel-prices',
-      geocode: '/api/geocode',
-      route: '/api/route',
-      tolls: '/api/tolls/calculate',
-      fuel: '/api/fuel/prices/:country'
+      // Health
+      health: 'GET /health',
+
+      // Mapbox Services
+      geocode: 'POST /api/geocode',
+      route: 'POST /api/route',
+
+      // TollGuru API
+      tolls: 'POST /api/tolls/calculate',
+
+      // Fuel Prices (RapidAPI)
+      fuelPrices: 'GET /api/fuel/prices/:country',
+
+      // User Vehicles
+      vehicles: 'GET/POST/PUT/DELETE /api/vehicles',
+
+      // Route Cost Calculation
+      routeCost: 'POST /api/route-cost'
+    },
+    apiKeys: {
+      mapbox: process.env.MAPBOX_ACCESS_TOKEN ? '✅ Configured' : '❌ Missing',
+      tollguru: process.env.TOLLGURU_API_KEY ? '✅ Configured' : '❌ Missing',
+      rapidapi: process.env.RAPID_API_KEY ? '✅ Configured' : '❌ Missing'
     }
   });
 });
 
+// ============================================
+// START SERVER
+// ============================================
+
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🚀 Vicatomaps Server running on port ${PORT}`);
+  console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🗺️  Mapbox: ${process.env.MAPBOX_ACCESS_TOKEN ? '✅' : '❌'}`);
+  console.log(`🛣️  TollGuru: ${process.env.TOLLGURU_API_KEY ? '✅' : '❌'}`);
+  console.log(`⛽ RapidAPI: ${process.env.RAPID_API_KEY ? '✅' : '❌'}`);
 });

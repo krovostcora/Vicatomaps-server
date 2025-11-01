@@ -122,6 +122,18 @@ router.post('/tolls/calculate', async (req, res) => {
             return res.status(400).json({ error: 'Valid route coordinates required' });
         }
 
+        // ✅ Check if TollGuru API key exists
+        if (!process.env.TOLLGURU_API_KEY) {
+            console.warn('⚠️ TOLLGURU_API_KEY not set, using estimates');
+            const estimatedTolls = estimateTollCost(route);
+            return res.json({
+                success: true,
+                ...estimatedTolls,
+                isEstimated: true,
+                note: 'TollGuru API key not configured'
+            });
+        }
+
         // Simplify route (max 20 waypoints)
         const simplifiedWaypoints = simplifyRoute(route, 20);
 
@@ -139,6 +151,9 @@ router.post('/tolls/calculate', async (req, res) => {
             units: 'metric'
         };
 
+        console.log('📡 Calling TollGuru API...');
+        console.log('Request:', JSON.stringify(requestBody, null, 2));
+
         const response = await axios.post(
             'https://apis.tollguru.com/toll/v2/origin-destination-waypoints',
             requestBody,
@@ -151,40 +166,60 @@ router.post('/tolls/calculate', async (req, res) => {
             }
         );
 
-        if (response.data.route) {
-            const costs = response.data.route.costs;
+        console.log('✅ TollGuru response status:', response.status);
+        console.log('Response data:', JSON.stringify(response.data, null, 2));
+
+        // ✅ Better response parsing
+        if (response.data && response.data.route) {
+            const costs = response.data.route.costs || {};
             const tolls = response.data.route.tolls || [];
 
             const tollDetails = tolls.map(toll => ({
                 name: toll.name || 'Unknown',
-                cost: toll.tagCost || 0,
-                currency: toll.currency || 'EUR'
+                cost: toll.tagCost || toll.cashCost || 0,
+                currency: toll.currency || costs.currency || 'EUR'
             }));
 
-            res.json({
+            const totalCost = costs.tag || costs.cash || 0;
+
+            console.log(`✅ TollGuru returned: ${tollDetails.length} tolls, total: ${totalCost}`);
+
+            return res.json({
                 success: true,
-                totalCost: costs.tag || costs.cash || 0,
+                totalCost: totalCost,
                 currency: costs.currency || 'EUR',
                 tollCount: tollDetails.length,
                 tolls: tollDetails,
                 isEstimated: false
             });
         } else {
-            res.json({
-                success: false,
-                error: 'No toll data available'
+            console.warn('⚠️ TollGuru returned no route data');
+            const estimatedTolls = estimateTollCost(route);
+            return res.json({
+                success: true,
+                ...estimatedTolls,
+                isEstimated: true,
+                note: 'No toll data from TollGuru for this route'
             });
         }
     } catch (error) {
-        console.error('TollGuru error:', error.message);
+        console.error('❌ TollGuru error:', error.message);
+
+        // ✅ Log detailed error info
+        if (error.response) {
+            console.error('TollGuru error response:', {
+                status: error.response.status,
+                data: error.response.data
+            });
+        }
 
         // Return estimated tolls as fallback
         const estimatedTolls = estimateTollCost(req.body.route);
-        res.json({
+        return res.json({
             success: true,
             ...estimatedTolls,
             isEstimated: true,
-            note: 'Using estimated toll costs (API unavailable)'
+            note: 'TollGuru API error: ' + error.message
         });
     }
 });
