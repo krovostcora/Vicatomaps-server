@@ -10,7 +10,7 @@ require('dotenv').config();
 const fuelPriceCache = new Map();
 const tollCache = new Map();
 
-const FUEL_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+const FUEL_CACHE_DURATION = 92 * 60 * 60 * 1000; // 92 hours
 const TOLL_CACHE_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days (tolls rarely change)
 
 // ============================================
