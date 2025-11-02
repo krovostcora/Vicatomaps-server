@@ -233,6 +233,31 @@ class TollService {
         const end = `${route[route.length-1].lat.toFixed(4)},${route[route.length-1].lng.toFixed(4)}`;
         return `toll:${start}_${end}_${vehicleType}`;
     }
+    async getTollsByCountry(countryCode, options = {}) {
+        try {
+            const query = {
+                country: countryCode.toUpperCase(),
+            };
+            if (options.active !== undefined) {
+                query.active = options.active;
+            }
+            if (options.roadType) {
+                query.roadType = options.roadType;
+            }
+
+            const tolls = await TollRoad.find(query)
+                .select('name country roadType roadNumber lengthKm pricing category active')
+                .lean();
+
+            return tolls;
+        } catch (error) {
+            throw new DatabaseError(
+                `Failed to fetch toll roads for country ${countryCode}`,
+                'TollService.getTollsByCountry'
+            );
+        }
+    }
 }
+
 
 module.exports = new TollService();

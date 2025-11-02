@@ -10,77 +10,55 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// ✅ Додати requestId для кожного запиту
+app.use((req, res, next) => {
+  res.locals.requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  next();
+});
+
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log('✅ MongoDB connected'))
     .catch(err => console.error('❌ MongoDB connection error:', err));
 
-// ============================================
-// ROUTES
-// ============================================
-
-// Mapbox & External APIs (Geocoding, Routes, Tolls, Fuel Prices)
-const mapboxRoutes = require('./src/routes/mapbox.routes.js');
-app.use('/api', mapboxRoutes);
-
-// User Vehicles Management
-const vehiclesRouter = require('./src/routes/vehicle.routes.js');
-app.use('/api/vehicles', vehiclesRouter);
-
-// Route Cost Calculation
-const routeCostRouter = require('./src/routes/routeCost.routes.js');
-app.use('/api/route-cost', routeCostRouter);
-
-// Toll Roads (local DB)
-const tollRoutes = require('./src/routes/toll.routes.js');
+// Routes
+const tollRoutes = require('./src/routes/toll.routes');
 app.use('/api/tolls', tollRoutes);
 
-// ============================================
-// HEALTH CHECK
-// ============================================
-
+// Health check
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-    environment: process.env.NODE_ENV || 'development'
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
   });
 });
 
-// ============================================
-// ROOT ENDPOINT
-// ============================================
-
+// Root endpoint
 app.get('/', (req, res) => {
   res.json({
     message: 'Vicatomaps API Server',
     version: '2.0.0',
-    description: 'Route planning with real-time tolls and fuel prices',
     endpoints: {
-      // Health
       health: 'GET /health',
+      tolls: 'POST /api/tolls/calculate'
+    }
+  });
+});
 
-      // Mapbox Services
-      geocode: 'POST /api/geocode',
-      route: 'POST /api/route',
+// Error handler (має бути останнім!)
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
 
-      // TollGuru API
-      tolls: 'POST /api/tolls/calculate',
-
-      // Fuel Prices (RapidAPI)
-      fuelPrices: 'GET /api/fuel/prices/:country',
-
-      // User Vehicles
-      vehicles: 'GET/POST/PUT/DELETE /api/vehicles',
-
-      // Route Cost Calculation
-      routeCost: 'POST /api/route-cost'
+  res.status(err.statusCode || 500).json({
+    success: false,
+    error: {
+      type: err.name || 'Error',
+      message: err.message || 'Internal server error'
     },
-    apiKeys: {
-      mapbox: process.env.MAPBOX_ACCESS_TOKEN ? '✅ Configured' : '❌ Missing',
-      tollguru: process.env.TOLLGURU_API_KEY ? '✅ Configured' : '❌ Missing',
-      rapidapi: process.env.RAPID_API_KEY ? '✅ Configured' : '❌ Missing'
+    meta: {
+      timestamp: new Date().toISOString(),
+      requestId: res.locals.requestId
     }
   });
 });
@@ -93,6 +71,5 @@ app.listen(PORT, () => {
   console.log(`🚀 Vicatomaps Server running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🗺️  Mapbox: ${process.env.MAPBOX_ACCESS_TOKEN ? '✅' : '❌'}`);
-  console.log(`🛣️  TollGuru: ${process.env.TOLLGURU_API_KEY ? '✅' : '❌'}`);
   console.log(`⛽ RapidAPI: ${process.env.RAPID_API_KEY ? '✅' : '❌'}`);
 });
