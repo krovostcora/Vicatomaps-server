@@ -128,29 +128,23 @@ router.post('/tolls/calculate', async (req, res) => {
     try {
         const { route, vehicleType = '2AxlesAuto' } = req.body;
 
+        console.log('═══════════════════════════════════════════');
+        console.log('📍 TOLL CALCULATION REQUEST');
+        console.log(`   Received route with ${route?.length} points`);
+        console.log(`   Vehicle type: ${vehicleType}`);
+
         if (!route || !Array.isArray(route) || route.length < 2) {
+            console.error('❌ Invalid route:', route);
             return res.status(400).json({ error: 'Valid route coordinates required' });
         }
 
-        // Create cache key based on route endpoints and vehicle type
-        const cacheKey = `${route[0].lat.toFixed(4)},${route[0].lng.toFixed(4)}_${route[route.length-1].lat.toFixed(4)},${route[route.length-1].lng.toFixed(4)}_${vehicleType}`;
-
-        // ✅ CHECK CACHE FIRST
-        if (tollCache.has(cacheKey)) {
-            const cached = tollCache.get(cacheKey);
-            if (Date.now() - cached.timestamp < TOLL_CACHE_DURATION) {
-                console.log(`✅ Returning cached toll data for route`);
-                return res.json({
-                    ...cached.data,
-                    fromCache: true,
-                    cachedAt: new Date(cached.timestamp).toISOString()
-                });
-            }
-        }
+        // Log first and last points
+        console.log(`   Start: ${route[0].lat}, ${route[0].lng}`);
+        console.log(`   End: ${route[route.length - 1].lat}, ${route[route.length - 1].lng}`);
 
         // ✅ Check if TollGuru API key exists
         if (!process.env.TOLLGURU_API_KEY) {
-            console.warn('⚠️ TOLLGURU_API_KEY not set, using estimates');
+            console.warn('⚠️  TOLLGURU_API_KEY not set in environment');
             const estimatedTolls = estimateTollCost(route);
             return res.json({
                 success: true,
@@ -160,25 +154,57 @@ router.post('/tolls/calculate', async (req, res) => {
             });
         }
 
-        // Simplify route (max 20 waypoints for TollGuru)
-        const simplifiedWaypoints = simplifyRoute(route, 20);
+        console.log('✅ TollGuru API key found');
+
+        // ✅ ПРАВИЛЬНЕ спрощення маршруту
+        let simplifiedRoute = route;
+        if (route.length > 20) {
+            simplifiedRoute = [route[0]]; // Початок
+
+            const step = Math.floor((route.length - 2) / 18); // 18 проміжних точок
+            for (let i = step; i < route.length - 1; i += step) {
+                if (simplifiedRoute.length < 19) { // Максимум 19 + кінець = 20
+                    simplifiedRoute.push(route[i]);
+                }
+            }
+
+            simplifiedRoute.push(route[route.length - 1]); // Кінець
+        }
+
+        console.log(`📍 Simplified route: ${route.length} → ${simplifiedRoute.length} points`);
+
+        // ✅ ПРАВИЛЬНЕ створення waypoints (БЕЗ початку і кінця!)
+        const waypoints = [];
+        for (let i = 1; i < simplifiedRoute.length - 1; i++) {
+            waypoints.push({
+                lat: simplifiedRoute[i].lat,
+                lng: simplifiedRoute[i].lng
+            });
+        }
 
         const requestBody = {
             source: {
-                lat: route[0].lat,
-                lng: route[0].lng
+                lat: simplifiedRoute[0].lat,
+                lng: simplifiedRoute[0].lng
             },
             destination: {
-                lat: route[route.length - 1].lat,
-                lng: route[route.length - 1].lng
+                lat: simplifiedRoute[simplifiedRoute.length - 1].lat,
+                lng: simplifiedRoute[simplifiedRoute.length - 1].lng
             },
-            waypoints: simplifiedWaypoints,
+            waypoints: waypoints, // Тільки проміжні точки
             vehicleType: vehicleType,
             units: 'metric'
         };
 
-        console.log('📡 Calling TollGuru API...');
-        console.log('Route:', `${route[0].lat},${route[0].lng} → ${route[route.length-1].lat},${route[route.length-1].lng}`);
+        console.log('📡 TollGuru request body:');
+        console.log(`   Source: ${requestBody.source.lat.toFixed(6)}, ${requestBody.source.lng.toFixed(6)}`);
+        console.log(`   Destination: ${requestBody.destination.lat.toFixed(6)}, ${requestBody.destination.lng.toFixed(6)}`);
+        console.log(`   Waypoints count: ${waypoints.length}`);
+        if (waypoints.length > 0) {
+            console.log(`   First waypoint: ${waypoints[0].lat.toFixed(6)}, ${waypoints[0].lng.toFixed(6)}`);
+        }
+
+        const startTime = Date.now();
 
         const response = await axios.post(
             'https://apis.tollguru.com/toll/v2/origin-destination-waypoints',
@@ -188,45 +214,54 @@ router.post('/tolls/calculate', async (req, res) => {
                     'x-api-key': process.env.TOLLGURU_API_KEY,
                     'Content-Type': 'application/json'
                 },
-                timeout: 15000
+                timeout: 20000,
+                maxContentLength: Infinity,
+                maxBodyLength: Infinity
             }
         );
 
-        console.log('✅ TollGuru response status:', response.status);
+        const duration = Date.now() - startTime;
+        console.log(`✅ TollGuru responded in ${duration}ms`);
+        console.log(`   Status: ${response.status}`);
 
         // ✅ Parse response
         if (response.data && response.data.route) {
             const costs = response.data.route.costs || {};
             const tolls = response.data.route.tolls || [];
 
-            const tollDetails = tolls.map(toll => ({
-                name: toll.name || 'Unknown',
-                cost: toll.tagCost || toll.cashCost || 0,
-                currency: toll.currency || costs.currency || 'EUR'
-            }));
+            console.log(`📊 TollGuru response:`);
+            console.log(`   Tag cost: ${costs.tag}, Cash cost: ${costs.cash}`);
+            console.log(`   Currency: ${costs.currency}`);
+            console.log(`   Tolls count: ${tolls.length}`);
+
+            const tollDetails = tolls.map(toll => {
+                const cost = toll.tagCost || toll.cashCost || 0;
+                console.log(`   - ${toll.name}: ${cost} ${toll.currency || costs.currency}`);
+                return {
+                    name: toll.name || 'Unknown',
+                    cost: cost,
+                    currency: toll.currency || costs.currency || 'EUR'
+                };
+            });
 
             const totalCost = costs.tag || costs.cash || 0;
 
-            console.log(`✅ TollGuru returned: ${tollDetails.length} tolls, total: ${totalCost} ${costs.currency || 'EUR'}`);
+            console.log(`✅ TollGuru SUCCESS: ${totalCost} ${costs.currency || 'EUR'} (${tollDetails.length} tolls)`);
+            console.log('═══════════════════════════════════════════');
 
-            const responseData = {
+            return res.json({
                 success: true,
                 totalCost: totalCost,
                 currency: costs.currency || 'EUR',
                 tollCount: tollDetails.length,
                 tolls: tollDetails,
                 isEstimated: false
-            };
-
-            // ✅ CACHE THE RESULT
-            tollCache.set(cacheKey, {
-                data: responseData,
-                timestamp: Date.now()
             });
-
-            return res.json(responseData);
         } else {
-            console.warn('⚠️ TollGuru returned no route data');
+            console.warn('⚠️  TollGuru returned no route data');
+            console.log('   Response:', JSON.stringify(response.data));
+            console.log('═══════════════════════════════════════════');
+
             const estimatedTolls = estimateTollCost(route);
             return res.json({
                 success: true,
@@ -236,15 +271,30 @@ router.post('/tolls/calculate', async (req, res) => {
             });
         }
     } catch (error) {
-        console.error('❌ TollGuru error:', error.message);
+        console.error('❌ TollGuru ERROR:');
+        console.error(`   Message: ${error.message}`);
 
-        // ✅ Log detailed error info
         if (error.response) {
-            console.error('TollGuru error response:', {
-                status: error.response.status,
-                data: error.response.data
-            });
+            console.error(`   HTTP Status: ${error.response.status}`);
+            console.error(`   Response data:`, JSON.stringify(error.response.data, null, 2));
+
+            if (error.response.status === 400) {
+                console.error('   ⚠️  Bad request - check coordinates format');
+            }
+
+            if (error.response.status === 403) {
+                console.error('   ⚠️  TollGuru API key invalid or no active subscription!');
+                console.error('   ⚠️  Visit: https://tollguru.com/developers/get-api-key');
+            }
+
+            if (error.response.status === 413) {
+                console.error('   ⚠️  Request too large!');
+            }
+        } else if (error.request) {
+            console.error('   ⚠️  No response from TollGuru (network issue)');
         }
+
+        console.log('═══════════════════════════════════════════');
 
         // Return estimated tolls as fallback
         const estimatedTolls = estimateTollCost(req.body.route);
@@ -252,7 +302,7 @@ router.post('/tolls/calculate', async (req, res) => {
             success: true,
             ...estimatedTolls,
             isEstimated: true,
-            note: 'TollGuru API error: ' + error.message
+            note: `TollGuru API error (${error.response?.status || 'network'})`
         });
     }
 });
@@ -378,22 +428,6 @@ router.get('/fuel/prices/:country', async (req, res) => {
 // ============================================
 // HELPER FUNCTIONS
 // ============================================
-
-function simplifyRoute(route, maxPoints) {
-    if (route.length <= maxPoints) return [];
-
-    const waypoints = [];
-    const step = Math.floor(route.length / maxPoints);
-
-    for (let i = step; i < route.length - 1; i += step) {
-        waypoints.push({
-            lat: route[i].lat,
-            lng: route[i].lng
-        });
-    }
-
-    return waypoints;
-}
 
 function estimateTollCost(route) {
     const distance = calculateDistance(route);
