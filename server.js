@@ -20,16 +20,20 @@ mongoose.connect(process.env.MONGODB_URI)
 // ============================================
 
 // Mapbox & External APIs (Geocoding, Routes, Tolls, Fuel Prices)
-const mapboxRoutes = require('./routes/mapboxRoutes');
+const mapboxRoutes = require('./src/routes/mapbox.routes.js');
 app.use('/api', mapboxRoutes);
 
 // User Vehicles Management
-const vehiclesRouter = require('./routes/vehicles');
+const vehiclesRouter = require('./src/routes/vehicle.routes.js');
 app.use('/api/vehicles', vehiclesRouter);
 
 // Route Cost Calculation
-const routeCostRouter = require('./routes/routeCost');
+const routeCostRouter = require('./src/routes/routeCost.routes.js');
 app.use('/api/route-cost', routeCostRouter);
+
+// Toll Roads (local DB)
+const tollRoutes = require('./src/routes/toll.routes.js');
+app.use('/api/tolls', tollRoutes);
 
 // ============================================
 // HEALTH CHECK
