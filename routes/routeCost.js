@@ -4,7 +4,7 @@ const axios = require('axios');
 const NodeCache = require('node-cache');
 
 // Import models
-const Vehicle = require('../models/Vehicle');
+const Vehicle = require('../src/models/Vehicle');
 
 // Cache configuration (6 hours for fuel, 1 hour for routes)
 const cache = new NodeCache({ stdTTL: 3600 });

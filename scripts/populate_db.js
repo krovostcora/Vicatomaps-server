@@ -2,7 +2,7 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') }
 
 
 const mongoose = require('mongoose');
-const Vehicle = require('../models/Vehicle');
+const Vehicle = require('../src/models/Vehicle');
 
 async function populateDatabase() {
   try {
