@@ -22,6 +22,9 @@ mongoose.connect(process.env.MONGODB_URI)
     .catch(err => console.error('❌ MongoDB connection error:', err));
 
 // Routes
+const mapboxRoutes = require('./src/routes/mapbox.routes');
+app.use('/api', mapboxRoutes);
+
 const tollRoutes = require('./src/routes/toll.routes');
 app.use('/api/tolls', tollRoutes);
 
