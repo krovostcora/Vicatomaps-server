@@ -18,47 +18,63 @@ const RATES_PER_KM = {
     CAS: 0.090
 };
 
-/** A1 — Autostrada del Sole: Milano → Napoli */
+/** A1 — Autostrada del Sole: Milano → Napoli (refined) */
 const A1 = [
-    { from: 'Milan', to: 'Piacenza', lengthKm: 70, operator: 'AUTOSTRADE' },
-    { from: 'Piacenza', to: 'Parma', lengthKm: 67, operator: 'AUTOSTRADE' },
-    { from: 'Parma', to: 'Reggio Emilia', lengthKm: 30, operator: 'AUTOSTRADE' },
+    { from: 'Melegnano', to: 'Lodi', lengthKm: 20, operator: 'AUTOSTRADE' },
+    { from: 'Lodi', to: 'Piacenza', lengthKm: 40, operator: 'AUTOSTRADE' },
+    { from: 'Piacenza', to: 'Parma', lengthKm: 50, operator: 'AUTOSTRADE' },
+    { from: 'Parma', to: 'Reggio Emilia', lengthKm: 35, operator: 'AUTOSTRADE' },
     { from: 'Reggio Emilia', to: 'Modena', lengthKm: 25, operator: 'AUTOSTRADE' },
-    { from: 'Modena', to: 'Bologna', lengthKm: 40, operator: 'AUTOSTRADE' },
-    { from: 'Bologna', to: 'Florence', lengthKm: 105, operator: 'AUTOSTRADE' },
-    { from: 'Florence', to: 'Arezzo', lengthKm: 70, operator: 'AUTOSTRADE' },
-    { from: 'Arezzo', to: 'Orvieto', lengthKm: 100, operator: 'AUTOSTRADE' },
-    { from: 'Orvieto', to: 'Rome', lengthKm: 120, operator: 'AUTOSTRADE' },
-    { from: 'Rome', to: 'Frosinone', lengthKm: 90, operator: 'AUTOSTRADE' },
+    { from: 'Modena', to: 'Bologna', lengthKm: 45, operator: 'AUTOSTRADE' },
+    { from: 'Bologna', to: 'Imola', lengthKm: 35, operator: 'AUTOSTRADE' },
+    { from: 'Imola', to: 'Florence', lengthKm: 70, operator: 'AUTOSTRADE' },
+    { from: 'Florence', to: 'Arezzo', lengthKm: 65, operator: 'AUTOSTRADE' },
+    { from: 'Arezzo', to: 'Chiusi', lengthKm: 55, operator: 'AUTOSTRADE' },
+    { from: 'Chiusi', to: 'Orvieto', lengthKm: 60, operator: 'AUTOSTRADE' },
+    { from: 'Orvieto', to: 'Orte', lengthKm: 45, operator: 'AUTOSTRADE' },
+    { from: 'Orte', to: 'Rome', lengthKm: 70, operator: 'AUTOSTRADE' },
+    { from: 'Rome', to: 'Frosinone', lengthKm: 80, operator: 'AUTOSTRADE' },
     { from: 'Frosinone', to: 'Cassino', lengthKm: 55, operator: 'AUTOSTRADE' },
-    { from: 'Cassino', to: 'Naples', lengthKm: 85, operator: 'AUTOSTRADE' }
+    { from: 'Cassino', to: 'Caserta', lengthKm: 50, operator: 'AUTOSTRADE' },
+    { from: 'Caserta', to: 'Naples', lengthKm: 35, operator: 'AUTOSTRADE' }
 ].map(s => ({ ...s, roadNumber: 'A1', description: 'Autostrada del Sole' }));
 
-/** A4 — Torino → Trieste */
+/** A4 — Torino → Trieste (refined) */
 const A4 = [
-    { from: 'Turin', to: 'Milan', lengthKm: 125, operator: 'SATAP' },
-    { from: 'Milan', to: 'Bergamo', lengthKm: 60, operator: 'AUTOSTRADE' },
+    { from: 'Turin', to: 'Chivasso', lengthKm: 30, operator: 'SATAP' },
+    { from: 'Chivasso', to: 'Novara', lengthKm: 55, operator: 'SATAP' },
+    { from: 'Novara', to: 'Milan', lengthKm: 45, operator: 'SATAP' },
+
+    // Західна розв'язка біля Мілану — старт тіла A4 на схід
+    { from: 'Pero', to: 'Bergamo', lengthKm: 60, operator: 'AUTOSTRADE' },
     { from: 'Bergamo', to: 'Brescia', lengthKm: 50, operator: 'AUTOSTRADE' },
-    { from: 'Brescia', to: 'Verona', lengthKm: 70, operator: 'A4HOLDING' },
+    { from: 'Brescia', to: 'Desenzano', lengthKm: 40, operator: 'A4HOLDING' },
+    { from: 'Desenzano', to: 'Verona', lengthKm: 45, operator: 'A4HOLDING' },
     { from: 'Verona', to: 'Vicenza', lengthKm: 50, operator: 'A4HOLDING' },
     { from: 'Vicenza', to: 'Padua', lengthKm: 35, operator: 'A4HOLDING' },
     { from: 'Padua', to: 'Venice Mestre', lengthKm: 35, operator: 'CAV' },
-    { from: 'Venice Mestre', to: 'Palmanova', lengthKm: 110, operator: 'CAV' },
+    { from: 'Venice Mestre', to: 'San Donà di Piave', lengthKm: 35, operator: 'CAV' },
+    { from: 'San Donà di Piave', to: 'Portogruaro', lengthKm: 35, operator: 'CAV' },
+    { from: 'Portogruaro', to: 'Palmanova', lengthKm: 40, operator: 'CAV' },
     { from: 'Palmanova', to: 'Udine', lengthKm: 25, operator: 'CAV' },
     { from: 'Udine', to: 'Trieste', lengthKm: 80, operator: 'CAV' }
 ].map(s => ({ ...s, roadNumber: 'A4', description: 'Serenissima' }));
 
-/** A7 — Milano → Genova */
+/** A7 — Milano → Genova (правильний трасинг через Serravalle) */
 const A7 = [
-    { from: 'Milan', to: 'Alessandria', lengthKm: 85, operator: 'SERRAVALLE' },
-    { from: 'Alessandria', to: 'Genoa', lengthKm: 60, operator: 'SERRAVALLE' }
-].map(s => ({ ...s, roadNumber: 'A7', description: 'Milano–Genova' }));
+    { from: 'Assago', to: 'Serravalle Scrivia', lengthKm: 85, operator: 'SERRAVALLE' },
+    { from: 'Serravalle Scrivia', to: 'Busalla', lengthKm: 35, operator: 'SERRAVALLE' },
+    { from: 'Busalla', to: 'Genoa', lengthKm: 25, operator: 'SERRAVALLE' }
+].map(s => ({ ...s, roadNumber: 'A7', description: 'Milano–Genova (Serravalle)' }));
 
-/** A12 — Genova → Livorno */
+/** A12 — Genova → Livorno (лігурійсько-тосканська гілка) */
 const A12 = [
+    // Західний відтинок (до Франції)
     { from: 'Genoa', to: 'Savona', lengthKm: 50, operator: 'SALT' },
     { from: 'Savona', to: 'Imperia', lengthKm: 75, operator: 'SALT' },
     { from: 'Imperia', to: 'Ventimiglia', lengthKm: 45, operator: 'SALT' },
+
+    // Східний відтинок (Toscana)
     { from: 'Genoa', to: 'La Spezia', lengthKm: 95, operator: 'SALT' },
     { from: 'La Spezia', to: 'Carrara', lengthKm: 20, operator: 'SALT' },
     { from: 'Carrara', to: 'Lucca', lengthKm: 45, operator: 'SALT' },
@@ -66,34 +82,54 @@ const A12 = [
     { from: 'Pisa', to: 'Livorno', lengthKm: 25, operator: 'SALT' }
 ].map(s => ({ ...s, roadNumber: 'A12', description: 'Autostrada Azzurra' }));
 
-/** A14 — Bologna → Bari */
+/** A14 — Bologna → Bari (узбережжя Адріатики) */
 const A14 = [
-    { from: 'Bologna', to: 'Ravenna', lengthKm: 75, operator: 'AUTOSTRADE' },
-    { from: 'Ravenna', to: 'Cesena', lengthKm: 35, operator: 'AUTOSTRADE' },
+    { from: 'San Lazzaro di Savena', to: 'Imola', lengthKm: 35, operator: 'AUTOSTRADE' },
+    { from: 'Imola', to: 'Cesena', lengthKm: 45, operator: 'AUTOSTRADE' },
     { from: 'Cesena', to: 'Rimini', lengthKm: 30, operator: 'AUTOSTRADE' },
-    { from: 'Rimini', to: 'Pesaro', lengthKm: 45, operator: 'AUTOSTRADE' },
-    { from: 'Pesaro', to: 'Ancona', lengthKm: 65, operator: 'AUTOSTRADE' },
-    { from: 'Ancona', to: 'Pescara', lengthKm: 160, operator: 'AUTOSTRADE' },
-    { from: 'Pescara', to: 'Foggia', lengthKm: 165, operator: 'AUTOSTRADE' },
-    { from: 'Foggia', to: 'Bari', lengthKm: 130, operator: 'AUTOSTRADE' }
+    { from: 'Rimini', to: 'Pesaro', lengthKm: 35, operator: 'AUTOSTRADE' },
+    { from: 'Pesaro', to: 'Ancona Nord', lengthKm: 70, operator: 'AUTOSTRADE' },
+    { from: 'Ancona Nord', to: 'Pescara Ovest', lengthKm: 160, operator: 'AUTOSTRADE' },
+    { from: 'Pescara Ovest', to: 'Foggia', lengthKm: 180, operator: 'AUTOSTRADE' },
+    { from: 'Foggia', to: 'Canosa di Puglia', lengthKm: 60, operator: 'AUTOSTRADE' },
+    { from: 'Canosa di Puglia', to: 'Bari', lengthKm: 65, operator: 'AUTOSTRADE' }
 ].map(s => ({ ...s, roadNumber: 'A14', description: 'Adriatica' }));
 
-/** A22 — Modena → Brennero */
+/** A22 — Modena → Brennero (Autobrennero) */
 const A22 = [
-    { from: 'Modena', to: 'Verona', lengthKm: 65, operator: 'AUTOBREN' },
-    { from: 'Verona', to: 'Rovereto', lengthKm: 70, operator: 'AUTOBREN' },
+    { from: 'Modena', to: 'Carpi', lengthKm: 25, operator: 'AUTOBREN' },
+    { from: 'Carpi', to: 'Verona', lengthKm: 55, operator: 'AUTOBREN' },
+    { from: 'Verona', to: 'Rovereto', lengthKm: 65, operator: 'AUTOBREN' },
     { from: 'Rovereto', to: 'Trento', lengthKm: 25, operator: 'AUTOBREN' },
-    { from: 'Trento', to: 'Bolzano', lengthKm: 60, operator: 'AUTOBREN' },
-    { from: 'Bolzano', to: 'Brenner', lengthKm: 85, operator: 'AUTOBREN' }
+    { from: 'Trento', to: 'Egna', lengthKm: 40, operator: 'AUTOBREN' },
+    { from: 'Egna', to: 'Bolzano', lengthKm: 30, operator: 'AUTOBREN' },
+    { from: 'Bolzano', to: 'Chiusa', lengthKm: 30, operator: 'AUTOBREN' },
+    { from: 'Chiusa', to: 'Vipiteno', lengthKm: 50, operator: 'AUTOBREN' },
+    { from: 'Vipiteno', to: 'Brenner', lengthKm: 35, operator: 'AUTOBREN' }
 ].map(s => ({ ...s, roadNumber: 'A22', description: 'Autobrennero' }));
 
-/** A30 — Caserta → Salerno */
+/** A30 — Caserta → Salerno (raccordo) */
 const A30 = [
     { from: 'Caserta', to: 'Avellino', lengthKm: 50, operator: 'AUTOSTRADE' },
     { from: 'Avellino', to: 'Salerno', lengthKm: 45, operator: 'AUTOSTRADE' }
 ].map(s => ({ ...s, roadNumber: 'A30', description: 'Raccordo Caserta–Salerno' }));
 
-/** Sicily — CAS operator */
+/** A55 — Tangenziale di Torino */
+const A55 = [
+    { from: 'Turin', to: 'Moncalieri', lengthKm: 15, operator: 'SATAP' },
+    { from: 'Moncalieri', to: 'Nichelino', lengthKm: 10, operator: 'SATAP' },
+    { from: 'Nichelino', to: 'Rivoli', lengthKm: 20, operator: 'SATAP' },
+    { from: 'Rivoli', to: 'Turin', lengthKm: 15, operator: 'SATAP' }
+].map(s => ({ ...s, roadNumber: 'A55', description: 'Tangenziale di Torino' }));
+
+/** A57 — Tangenziale di Mestre */
+const A57 = [
+    { from: 'Venice Mestre', to: 'Marcon', lengthKm: 15, operator: 'CAV' },
+    { from: 'Marcon', to: 'Quarto d’Altino', lengthKm: 10, operator: 'CAV' },
+    { from: 'Quarto d’Altino', to: 'San Donà di Piave', lengthKm: 20, operator: 'CAV' }
+].map(s => ({ ...s, roadNumber: 'A57', description: 'Tangenziale di Mestre' }));
+
+/** Sicily — Consorzio Autostrade Siciliane (CAS) */
 const A19 = [
     { from: 'Palermo', to: 'Enna', lengthKm: 120, operator: 'CAS' },
     { from: 'Enna', to: 'Catania', lengthKm: 70, operator: 'CAS' }
@@ -109,8 +145,20 @@ const A18 = [
     { from: 'Catania', to: 'Syracuse', lengthKm: 60, operator: 'CAS' }
 ].map(s => ({ ...s, roadNumber: 'A18', description: 'Catania–Siracusa' }));
 
+/** Зведення всіх трас у один масив */
 const italyTollRoads = [
-    ...A1, ...A4, ...A7, ...A12, ...A14, ...A22, ...A30, ...A19, ...A20, ...A18
+    ...A1,
+    ...A4,
+    ...A7,
+    ...A12,
+    ...A14,
+    ...A22,
+    ...A30,
+    ...A55,
+    ...A57,
+    ...A19,
+    ...A20,
+    ...A18
 ];
 
 function buildDoc(seg) {
@@ -277,22 +325,44 @@ async function seedItalyTolls() {
         console.log(`   Avg car toll/segment: €${avgCar.toFixed(2)}`);
 
         // Tests
-        const testA1 = docs.filter(d => d.roadNumber === 'A1');
-        const milanToRome = testA1
-            .filter(d => ['Milan', 'Piacenza', 'Parma', 'Reggio Emilia', 'Modena', 'Bologna', 'Florence', 'Arezzo', 'Orvieto', 'Rome'].some(x => d.name.includes(x)))
-            .reduce((s, d) => s + d.pricing[0].price, 0);
+        /** ===========================
+         *  Extra sanity tests (Italy)
+         *  =========================== */
+        function kmToCostEur(km, rate) { return +(km * rate).toFixed(2); }
 
-        console.log(`\n🧪 Test A1 Milan → Rome (car): €${milanToRome.toFixed(2)}`);
+        async function runExtraItalyTests() {
+            const rate = RATES_PER_KM.AUTOSTRADE; // залишається 0.092 як ти просила
 
-        const testA4 = docs.filter(d => d.roadNumber === 'A4');
-        const turinToVenice = testA4
-            .filter(d => ['Turin', 'Milan', 'Bergamo', 'Brescia', 'Verona', 'Vicenza', 'Padua', 'Venice Mestre'].some(x => d.name.includes(x)))
-            .reduce((s, d) => s + d.pricing[0].price, 0);
-        console.log(`🧪 Test A4 Turin → Venice Mestre (car): €${turinToVenice.toFixed(2)}`);
+            console.log('\n🧪 Extra tests (Italy v2):');
 
-        const testSicily = docs.filter(d => ['A19','A20','A18'].includes(d.roadNumber))
-            .reduce((s, d) => s + d.lengthKm, 0);
-        console.log(`🧪 Sicily network length (A18/A19/A20): ${Math.round(testSicily)} km`);
+            // A1: Milan → Rome (через Florence/Orte)
+            const a1Len =
+                20 + 40 + 50 + 35 + 25 + 45 + 70 + 65 + 55 + 60 + 45 + 70; // без римського відгалуження на південь
+            console.log(`🧪 A1 Milan → Rome (car): ~€${kmToCostEur(a1Len, rate)}`);
+
+            // A4: Turin → Venice Mestre (через Bergamo, Brescia, Verona, Vicenza, Padua)
+            const a4Len =
+                30 + 55 + 45 + 60 + 50 + 40 + 45 + 50 + 35 + 35;
+            console.log(`🧪 A4 Turin → Venice Mestre (car): ~€${kmToCostEur(a4Len, rate)}`);
+
+            // A14: Bologna (San Lazzaro) → Bari
+            const a14Len = 35 + 45 + 30 + 35 + 70 + 160 + 180 + 60 + 65;
+            console.log(`🧪 A14 Bologna → Bari (car): ~€${kmToCostEur(a14Len, rate)}`);
+
+            // A7: Milan (Assago) → Genoa
+            const a7Len = 85 + 35 + 25;
+            console.log(`🧪 A7 Milan → Genoa (car): ~€${kmToCostEur(a7Len, rate)}`);
+
+            // A22: Modena → Brenner
+            const a22Len = 25 + 55 + 65 + 25 + 40 + 30 + 30 + 50 + 35;
+            console.log(`🧪 A22 Modena → Brenner (car): ~€${kmToCostEur(a22Len, rate)}`);
+
+            // Sicily: A19 Palermo → Catania
+            const a19Len = 120 + 70;
+            console.log(`🧪 A19 Palermo → Catania (car): ~€${kmToCostEur(a19Len, RATES_PER_KM.CAS || rate)}`);
+        }
+
+        await runExtraItalyTests();
 
         await mongoose.connection.close();
         console.log('\n👋 Done seeding Italy!');

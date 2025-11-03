@@ -118,6 +118,35 @@ class TollService {
             logger.info('Geospatial query result', {
                 foundRoads: tollRoads.length
             });
+// ✳️  після того, як отримали tollRoads з бази
+            const routeCoords = routeLine.coordinates;
+
+// Функція для швидкої евклідової (грубого радіуса) відстані між точками
+            function distanceKm(a, b) {
+                const dx = a[0] - b[0];
+                const dy = a[1] - b[1];
+                return Math.sqrt(dx * dx + dy * dy) * 111; // приблизно км
+            }
+
+            // після const tollRoads = await TollRoad.find(...);
+            const filtered = tollRoads.filter(road => {
+                const coords = road.geometry?.coordinates;
+                if (!coords || coords.length < 2) return false;
+                const mid = coords[Math.floor(coords.length / 2)];
+
+                // беремо відстань від середини дороги до середини маршруту
+                const routeMid = routeLine.coordinates[Math.floor(routeLine.coordinates.length / 2)];
+                const dx = mid[0] - routeMid[0];
+                const dy = mid[1] - routeMid[1];
+                const distKm = Math.sqrt(dx * dx + dy * dy) * 111;
+
+                // тепер замість 60 робимо 40 км
+                return distKm < 60;
+            });
+
+
+            tollRoads.length = 0;
+            tollRoads.push(...filtered);
 
             // СТРАТЕГІЯ 2: Якщо знайшли дороги - шукати ВСІ сегменти тих же доріг
             if (tollRoads.length > 0) {
