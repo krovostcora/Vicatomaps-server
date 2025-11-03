@@ -21,12 +21,21 @@ mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log('✅ MongoDB connected'))
     .catch(err => console.error('❌ MongoDB connection error:', err));
 
-// Routes
+// ============================================
+// ROUTES REGISTRATION
+// ============================================
+
+// Mapbox routes (geocode, route)
 const mapboxRoutes = require('./src/routes/mapbox.routes');
 app.use('/api', mapboxRoutes);
 
+// Toll routes (toll calculations from MongoDB)
 const tollRoutes = require('./src/routes/toll.routes');
 app.use('/api/tolls', tollRoutes);
+
+// Route Cost routes (Mapbox + Tolls integration) - NEW!
+const routeCostRoutes = require('./src/routes/routeCost.routes');
+app.use('/api/route-cost', routeCostRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -44,7 +53,21 @@ app.get('/', (req, res) => {
     version: '2.0.0',
     endpoints: {
       health: 'GET /health',
-      tolls: 'POST /api/tolls/calculate'
+
+      // Mapbox
+      geocode: 'POST /api/geocode',
+      route: 'POST /api/route',
+
+      // Tolls
+      calculateTolls: 'POST /api/tolls/calculate',
+      getTollsByCountry: 'GET /api/tolls/country/:code',
+
+      // Route Cost (Mapbox + Tolls)
+      routeCostByCoords: 'POST /api/route-cost/calculate',
+      routeCostByAddress: 'POST /api/route-cost/calculate-from-address',
+
+      // Fuel
+      fuelPrices: 'GET /api/fuel/prices/:country'
     }
   });
 });
@@ -75,4 +98,11 @@ app.listen(PORT, () => {
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🗺️  Mapbox: ${process.env.MAPBOX_ACCESS_TOKEN ? '✅' : '❌'}`);
   console.log(`⛽ RapidAPI: ${process.env.RAPID_API_KEY ? '✅' : '❌'}`);
+  console.log(`\n📋 Available endpoints:`);
+  console.log(`   POST /api/geocode - Geocode address`);
+  console.log(`   POST /api/route - Calculate Mapbox route`);
+  console.log(`   POST /api/tolls/calculate - Calculate tolls`);
+  console.log(`   POST /api/route-cost/calculate - Full route cost (NEW!)`);
+  console.log(`   GET  /api/tolls/country/:code - Get tolls by country`);
+  console.log(`   GET  /health - Health check`);
 });
