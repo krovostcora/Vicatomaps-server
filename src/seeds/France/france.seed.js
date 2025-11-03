@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const TollRoad = require('../models/TollRoad');
+const TollRoad = require('../../models/TollRoad');
 const NODE_COORDINATES = require('./node_coordinates_fr.json');
 require('dotenv').config();
 

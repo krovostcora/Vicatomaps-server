@@ -10,8 +10,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
 
     "seed": "node src/seeds/index.js",
-    "seed:poland": "node src/seeds/poland.seed.js",
-    "seed:france": "node src/seeds/france.seed.js",
+    "seed:poland": "node src/seeds/Poland/poland.seed.js",
+    "seed:france": "node src/seeds/France/france.seed.js",
+    "seed:italy": "node src/seeds/Italy/italy.seed.js",
     "seed:clear": "node src/scripts/clear-tolls.js"
   },
   "private": true,

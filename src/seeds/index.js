@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
-const seedPolandTolls = require('./poland.seed');
-const seedFranceTolls = require('./france.seed');
+const seedPolandTolls = require('./Poland/poland.seed');
+const seedFranceTolls = require('./France/france.seed');
+const seedItalyTolls = require('./Italy/italy.seed');
 require('dotenv').config();
 
 async function seedAll() {
@@ -18,6 +19,12 @@ async function seedAll() {
         // Seed France
         console.log('🇫🇷 Seeding France toll roads...');
         await seedFranceTolls();
+        console.log('');
+
+        // Seed Italy
+        console.log('🇮🇹 Seeding Italy toll roads...');
+        console.log(' Seeding Italy toll roads...');
+        await seedItalyTolls();
         console.log('');
 
         mongoose.connection.close();

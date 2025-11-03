@@ -27,6 +27,12 @@ module.exports = {
             ASF: 0.091,    // A7, A9, A20, A62
             AREA: 0.089,   // A40, A41, A43
             ATMB: 0.110    // Тунелі (найдорожчі)
+        },
+        IT: {
+            AUTOSTRADE: 0.110,
+            SATAP: 0.105,
+            A4HOLDING: 0.100,
+            SALT: 0.115
         }
     },
 
@@ -181,5 +187,12 @@ module.exports = {
         ASF: 'Autoroutes du Sud de la France',
         AREA: 'Autoroutes Rhône-Alpes',
         ATMB: 'Autoroutes et Tunnel du Mont-Blanc'
+    },
+    IT_OPERATORS: {
+        AUTOSTRADE: 'Autostrade per l’Italia',
+        SATAP: 'Società Autostrada Torino-Alessandria-Piacenza',
+        A4HOLDING: 'A4 Holding (Brescia-Padova)',
+        SALT: 'Società Autostrada Ligure Toscana',
+        AISCAT: 'Associazione Italiana Società Concessionarie Autostrade e Trafori'
     }
 };
