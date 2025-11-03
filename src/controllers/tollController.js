@@ -184,6 +184,121 @@ class TollController {
             next(error);
         }
     }
+    /**
+     * POST /api/tolls/debug
+     * Debug endpoint для перевірки що знаходить MongoDB
+     */
+    async debugTollQuery(req, res, next) {
+        try {
+            const { route, vehicleType } = req.validatedBody;
+
+            const routeLine = {
+                type: 'LineString',
+                coordinates: route.map(p => [p.lng, p.lat])
+            };
+
+            const countries = geospatial.detectCountries(route);
+
+            // 1. Geospatial query
+            const geoResults = await TollRoad.find({
+                geometry: {
+                    $geoIntersects: {
+                        $geometry: routeLine
+                    }
+                },
+                country: { $in: countries },
+                active: true
+            })
+                .lean()
+                .select('name roadNumber country lengthKm pricing operator');
+
+            // 2. Отримати всі номери доріг
+            const roadNumbers = [...new Set(geoResults.map(r => r.roadNumber))];
+
+            // 3. Знайти всі сегменти цих доріг
+            const allSegments = await TollRoad.find({
+                roadNumber: { $in: roadNumbers },
+                country: { $in: countries },
+                active: true
+            })
+                .lean()
+                .select('name roadNumber country lengthKm pricing')
+                .sort({ roadNumber: 1, name: 1 });
+
+            // 4. Bounding box аналіз
+            const lats = route.map(p => p.lat);
+            const lngs = route.map(p => p.lng);
+            const bbox = {
+                minLat: Math.min(...lats),
+                maxLat: Math.max(...lats),
+                minLng: Math.min(...lngs),
+                maxLng: Math.max(...lngs)
+            };
+
+            // 5. Підрахунок вартості
+            const vehicleClass = constants.VEHICLE_TYPES[vehicleType] || 'car';
+
+            const totalGeo = geoResults.reduce((sum, road) => {
+                const pricing = road.pricing.find(p => p.vehicleClass === vehicleClass);
+                return sum + (pricing?.price || 0);
+            }, 0);
+
+            const totalAll = allSegments.reduce((sum, road) => {
+                const pricing = road.pricing.find(p => p.vehicleClass === vehicleClass);
+                return sum + (pricing?.price || 0);
+            }, 0);
+
+            return successResponse(res, {
+                route: {
+                    from: route[0],
+                    to: route[route.length - 1],
+                    points: route.length,
+                    countries: countries,
+                    boundingBox: bbox
+                },
+                query: {
+                    type: 'geoIntersects',
+                    routeLine: routeLine
+                },
+                results: {
+                    geoIntersects: {
+                        count: geoResults.length,
+                        roads: roadNumbers,
+                        totalCost: parseFloat(totalGeo.toFixed(2)),
+                        segments: geoResults.map(r => ({
+                            name: r.name,
+                            road: r.roadNumber,
+                            length: r.lengthKm,
+                            operator: r.operator
+                        }))
+                    },
+                    allSegmentsOfFoundRoads: {
+                        count: allSegments.length,
+                        roads: roadNumbers,
+                        totalCost: parseFloat(totalAll.toFixed(2)),
+                        segmentsByRoad: roadNumbers.map(roadNum => ({
+                            road: roadNum,
+                            segments: allSegments
+                                .filter(s => s.roadNumber === roadNum)
+                                .map(s => s.name)
+                        }))
+                    },
+                    comparison: {
+                        geoFound: geoResults.length,
+                        totalAvailable: allSegments.length,
+                        missing: allSegments.length - geoResults.length,
+                        costDifference: parseFloat((totalAll - totalGeo).toFixed(2))
+                    }
+                }
+            });
+
+        } catch (error) {
+            logger.error('Debug query failed', {
+                error: error.message
+            });
+            next(error);
+        }
+    }
 
     /**
      * DELETE /api/tolls/cache

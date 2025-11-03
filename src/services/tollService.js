@@ -26,7 +26,7 @@ class TollService {
                 vehicleType: vehicleType
             });
 
-            // 2. Перевірити кеш (для популярних маршрутів)
+            // 2. Перевірити кеш
             const cacheKey = this._generateCacheKey(route, vehicleType);
             const cached = await cacheService.get(cacheKey);
 
@@ -35,7 +35,7 @@ class TollService {
                 return { ...cached, fromCache: true };
             }
 
-            // 3. Шукати toll roads в MongoDB
+            // 3. Шукати toll roads в MongoDB (НОВИЙ АЛГОРИТМ)
             const dbTolls = await this._findTollRoadsInDB(route, countries, vehicleType);
 
             // 4. Додати віньєтки
@@ -89,19 +89,20 @@ class TollService {
     }
 
     /**
-     * Шукати toll roads в MongoDB
+     * Шукати toll roads в MongoDB - ВИПРАВЛЕНИЙ МЕТОД
      * @private
      */
     async _findTollRoadsInDB(route, countries, vehicleType) {
         try {
-            // Створити GeoJSON LineString
+            const vehicleClass = constants.VEHICLE_TYPES[vehicleType] || 'car';
+
+            // СТРАТЕГІЯ 1: Спробувати geospatial query з розширеним buffer
             const routeLine = {
                 type: 'LineString',
                 coordinates: route.map(p => [p.lng, p.lat])
             };
 
-            // Geospatial query
-            const tollRoads = await TollRoad.find({
+            let tollRoads = await TollRoad.find({
                 geometry: {
                     $geoIntersects: {
                         $geometry: routeLine
@@ -111,16 +112,50 @@ class TollService {
                 active: true
             })
                 .lean()
-                .select('name country pricing category lengthKm roadNumber')
+                .select('name country pricing category lengthKm roadNumber operator geometry')
                 .exec();
 
-            logger.info('MongoDB query completed', {
+            logger.info('Geospatial query result', {
                 foundRoads: tollRoads.length
             });
 
-            // Мапити на формат відповіді
-            const vehicleClass = constants.VEHICLE_TYPES[vehicleType] || 'car';
+            // СТРАТЕГІЯ 2: Якщо знайшли дороги - шукати ВСІ сегменти тих же доріг
+            if (tollRoads.length > 0) {
+                // Отримати унікальні номери доріг
+                const roadNumbers = [...new Set(tollRoads.map(r => r.roadNumber))];
 
+                logger.info('Found road numbers', { roadNumbers });
+
+                // Знайти ВСІ сегменти цих доріг в країнах маршруту
+                const allSegments = await TollRoad.find({
+                    roadNumber: { $in: roadNumbers },
+                    country: { $in: countries },
+                    active: true
+                })
+                    .lean()
+                    .select('name country pricing category lengthKm roadNumber operator geometry')
+                    .sort({ roadNumber: 1, name: 1 }) // Сортувати по дорозі та назві
+                    .exec();
+
+                logger.info('Found all segments for roads', {
+                    totalSegments: allSegments.length,
+                    roadNumbers: roadNumbers
+                });
+
+                // Фільтрувати сегменти які насправді на маршруті
+                tollRoads = this._filterRelevantSegments(allSegments, route, countries);
+
+                logger.info('Filtered relevant segments', {
+                    relevantSegments: tollRoads.length
+                });
+            }
+
+            // СТРАТЕГІЯ 3: Якщо все ще нічого - пошук по bounding box
+            if (tollRoads.length === 0) {
+                tollRoads = await this._findByBoundingBox(route, countries);
+            }
+
+            // Мапити на формат відповіді
             return tollRoads.map(road => {
                 const pricing = road.pricing.find(p => p.vehicleClass === vehicleClass);
 
@@ -138,12 +173,6 @@ class TollService {
                     const rate = constants.CURRENCY_RATES[`${pricing.currency}_TO_EUR`];
                     if (rate) {
                         cost = cost * rate;
-                        logger.debug('Currency converted', {
-                            from: pricing.currency,
-                            to: 'EUR',
-                            originalPrice: pricing.price,
-                            convertedPrice: cost
-                        });
                     }
                 }
 
@@ -154,16 +183,88 @@ class TollService {
                     source: 'database',
                     roadNumber: road.roadNumber,
                     country: road.country,
-                    category: road.category
+                    operator: road.operator || null
                 };
-            }).filter(Boolean); // Видалити null
+            }).filter(Boolean);
 
         } catch (error) {
+            logger.error('Database query failed', { error: error.message });
             throw new DatabaseError(
                 'Failed to query toll roads from database',
                 'TollRoad.find'
             );
         }
+    }
+
+    /**
+     * Фільтрувати релевантні сегменти на основі геометрії маршруту
+     * @private
+     */
+    _filterRelevantSegments(segments, route, countries) {
+        // Отримати bounding box маршруту з невеликим padding
+        const lats = route.map(p => p.lat);
+        const lngs = route.map(p => p.lng);
+
+        const minLat = Math.min(...lats) - 0.5; // ~50км padding
+        const maxLat = Math.max(...lats) + 0.5;
+        const minLng = Math.min(...lngs) - 0.5;
+        const maxLng = Math.max(...lngs) + 0.5;
+
+        logger.debug('Route bounding box', {
+            minLat, maxLat, minLng, maxLng
+        });
+
+        // Фільтрувати сегменти які потрапляють в bounding box
+        return segments.filter(segment => {
+            const coords = segment.geometry.coordinates;
+
+            // Перевірити чи хоча б одна точка сегмента в bounding box
+            return coords.some(coord => {
+                const [lng, lat] = coord;
+                return lat >= minLat && lat <= maxLat &&
+                    lng >= minLng && lng <= maxLng;
+            });
+        });
+    }
+
+    /**
+     * Пошук по bounding box як fallback
+     * @private
+     */
+    async _findByBoundingBox(route, countries) {
+        const lats = route.map(p => p.lat);
+        const lngs = route.map(p => p.lng);
+
+        const minLat = Math.min(...lats) - 0.3;
+        const maxLat = Math.max(...lats) + 0.3;
+        const minLng = Math.min(...lngs) - 0.3;
+        const maxLng = Math.max(...lngs) + 0.3;
+
+        logger.info('Using bounding box search', {
+            bbox: { minLat, maxLat, minLng, maxLng }
+        });
+
+        const roads = await TollRoad.find({
+            country: { $in: countries },
+            active: true,
+            'geometry.coordinates': {
+                $geoWithin: {
+                    $box: [
+                        [minLng, minLat],
+                        [maxLng, maxLat]
+                    ]
+                }
+            }
+        })
+            .lean()
+            .select('name country pricing category lengthKm roadNumber operator')
+            .exec();
+
+        logger.info('Bounding box search result', {
+            foundRoads: roads.length
+        });
+
+        return roads;
     }
 
     /**
@@ -176,7 +277,6 @@ class TollService {
 
         for (const country of countries) {
             if (vignetteCountries.includes(country)) {
-                // За замовчуванням 10-денна віньєтка
                 const price = constants.VIGNETTES[country]['10_days'] ||
                     constants.VIGNETTES[country]['7_days'] ||
                     constants.VIGNETTES[country]['1_year'];
@@ -207,7 +307,6 @@ class TollService {
             const rate = constants.ESTIMATED_TOLL_RATES[country] || 5.0;
 
             if (rate > 0) {
-                // Припускаємо 60% дистанції на платних автострадах
                 const estimatedTollKm = distance * 0.6;
                 const cost = (estimatedTollKm / 100) * rate;
 
@@ -230,9 +329,13 @@ class TollService {
      */
     _generateCacheKey(route, vehicleType) {
         const start = `${route[0].lat.toFixed(4)},${route[0].lng.toFixed(4)}`;
-        const end = `${route[route.length-1].lat.toFixed(4)},${route[route.length-1].lng.toFixed(4)}`;
+        const end = `${route[route.length - 1].lat.toFixed(4)},${route[route.length - 1].lng.toFixed(4)}`;
         return `toll:${start}_${end}_${vehicleType}`;
     }
+
+    /**
+     * Отримати всі дороги в країні
+     */
     async getTollsByCountry(countryCode, options = {}) {
         try {
             const query = {
@@ -246,7 +349,7 @@ class TollService {
             }
 
             const tolls = await TollRoad.find(query)
-                .select('name country roadType roadNumber lengthKm pricing category active')
+                .select('name country roadType roadNumber lengthKm pricing operator active')
                 .lean();
 
             return tolls;
@@ -257,7 +360,94 @@ class TollService {
             );
         }
     }
-}
 
+    /**
+     * Отримати статистику по країні
+     */
+    async getCountryStats(countryCode) {
+        try {
+            const stats = await TollRoad.aggregate([
+                {
+                    $match: {
+                        country: countryCode.toUpperCase(),
+                        active: true
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$roadNumber',
+                        count: { $sum: 1 },
+                        totalLength: { $sum: '$lengthKm' },
+                        avgPrice: { $avg: '$pricing.price' }
+                    }
+                },
+                {
+                    $sort: { _id: 1 }
+                }
+            ]);
+
+            return {
+                country: countryCode.toUpperCase(),
+                roadCount: stats.length,
+                stats: stats
+            };
+        } catch (error) {
+            throw new DatabaseError(
+                `Failed to get stats for country ${countryCode}`,
+                'TollService.getCountryStats'
+            );
+        }
+    }
+
+    /**
+     * Отримати toll road by ID
+     */
+    async getTollById(id) {
+        try {
+            const toll = await TollRoad.findById(id).lean();
+            return toll;
+        } catch (error) {
+            throw new DatabaseError(
+                'Failed to get toll road by ID',
+                'TollService.getTollById'
+            );
+        }
+    }
+
+    /**
+     * Estimate only (без geospatial)
+     */
+    async estimateTollsOnly(route, vehicleType) {
+        const countries = geospatial.detectCountries(route);
+        const estimates = this._estimateTollCost(route, countries);
+        const vignettes = this._calculateVignettes(countries, vehicleType);
+
+        const allTolls = [...estimates, ...vignettes];
+        const totalCost = allTolls.reduce((sum, toll) => sum + toll.cost, 0);
+
+        return {
+            totalCost: parseFloat(totalCost.toFixed(2)),
+            currency: 'EUR',
+            tollCount: allTolls.length,
+            tolls: allTolls,
+            isEstimated: true,
+            countries: countries
+        };
+    }
+
+    /**
+     * Очистити кеш
+     */
+    async clearCache() {
+        const pattern = 'toll:*';
+        const keys = await cacheService.keys(pattern);
+
+        for (const key of keys) {
+            await cacheService.del(key);
+        }
+
+        return keys.length;
+    }
+}
 
 module.exports = new TollService();

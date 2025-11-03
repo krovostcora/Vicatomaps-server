@@ -136,7 +136,18 @@ router.post(
     validate(calculateTollsSchema), // Валідація даних
     tollController.calculateTolls // Controller метод
 );
-
+/**
+ * @swagger
+ * /api/tolls/debug:
+ *   post:
+ *     summary: Debug toll calculation (shows what MongoDB finds)
+ *     tags: [Tolls - Debug]
+ */
+router.post(
+    '/debug',
+    validate(calculateTollsSchema),
+    tollController.debugTollQuery
+);
 /**
  * @swagger
  * /api/tolls/estimate:

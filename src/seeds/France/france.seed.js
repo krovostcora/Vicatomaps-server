@@ -292,8 +292,16 @@ const franceTollRoads = [
     },
 
     // ═══════════════════════════════════════════════════════════
-    // A8 - La Provençale (Aix → Nice) - ESCOTA (дорога)
+    // A8 - La Provençale (Aix → Nice) - ESCOTA (дорожча)
     // ═══════════════════════════════════════════════════════════
+    {
+        lengthKm: 20,
+        from: 'Marseille Saint-Charles',
+        to: 'Aix-en-Provence',
+        roadNumber: 'A8',
+        operator: 'ESCOTA',
+        description: 'Marseille exit to Aix'
+    },
     {
         lengthKm: 55,
         from: 'Aix-en-Provence',
