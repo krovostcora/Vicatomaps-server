@@ -1,147 +1,104 @@
-// scripts/debug-a7.js
-const mongoose = require('mongoose');
-const TollRoad = require('../src/models/TollRoad');
-require('dotenv').config();
+// scripts/debug-a7-api.js
+const axios = require('axios');
+
+const API_URL = process.env.API_URL || 'http://localhost:3000';
 
 async function debugA7() {
+    console.log('🔍 Debug A7: Milano → Genova\n');
+
+    const route = [
+        { lat: 45.4642, lng: 9.1900 },  // Milano
+        { lat: 44.4056, lng: 8.9463 }   // Genova
+    ];
+
     try {
-        await mongoose.connect(process.env.MONGODB_URI);
-        console.log('✅ Connected to MongoDB\n');
+        // 1. Спробувати через /calculate
+        console.log('1️⃣ Testing /api/tolls/calculate');
+        const calcResponse = await axios.post(`${API_URL}/api/tolls/calculate`, {
+            route,
+            vehicleType: '2AxlesAuto'
+        });
 
-        // 1. Перевірити чи A7 існує
-        const a7Roads = await TollRoad.find({
-            roadNumber: 'A7',
-            country: 'IT'
-        }).lean();
+        console.log('   Result:', {
+            totalCost: calcResponse.data.data.totalCost,
+            tollCount: calcResponse.data.data.tollCount,
+            isEstimated: calcResponse.data.data.isEstimated,
+            countries: calcResponse.data.data.countries,
+            roads: [...new Set(calcResponse.data.data.tolls.map(t => t.roadNumber))]
+        });
 
-        console.log('📍 A7 segments in database:');
+        console.log('   Tolls:');
+        calcResponse.data.data.tolls.forEach(toll => {
+            console.log(`     - ${toll.name}: €${toll.cost} (${toll.source})`);
+        });
+
+        // 2. Перевірити через /country/IT
+        console.log('\n2️⃣ Testing /api/tolls/country/IT (A7 only)');
+        const countryResponse = await axios.get(`${API_URL}/api/tolls/country/IT`);
+        const a7Roads = countryResponse.data.data.tolls.filter(t => t.roadNumber === 'A7');
+
+        console.log(`   Found ${a7Roads.length} A7 segments in DB:`);
         a7Roads.forEach(road => {
-            console.log(`   ${road.name}`);
-            console.log(`   Coordinates: ${JSON.stringify(road.geometry.coordinates)}`);
-            console.log(`   Price: €${road.pricing[0].price}\n`);
+            console.log(`     - ${road.name}: €${road.pricing[0].price}`);
         });
 
-        // 2. Створити маршрут Milano → Genova
-        const route = [
-            { lat: 45.4642, lng: 9.1900 },  // Milano
-            { lat: 44.4056, lng: 8.9463 }   // Genova
-        ];
-
-        const routeLine = {
-            type: 'LineString',
-            coordinates: route.map(p => [p.lng, p.lat])
-        };
-
-        console.log('🗺️ Route:');
-        console.log(`   From: Milano (${route[0].lat}, ${route[0].lng})`);
-        console.log(`   To: Genova (${route[1].lat}, ${route[1].lng})`);
-        console.log(`   Line: ${JSON.stringify(routeLine)}\n`);
-
-        // 3. Спробувати geospatial query
-        console.log('🔍 Testing geospatial query...');
-        const geoResults = await TollRoad.find({
-            geometry: {
-                $geoIntersects: {
-                    $geometry: routeLine
-                }
-            },
-            country: 'IT',
-            active: true
-        }).lean();
-
-        console.log(`   Found: ${geoResults.length} segments`);
-        geoResults.forEach(road => {
-            console.log(`   - ${road.name} (${road.roadNumber})`);
-        });
-
-        // 4. Перевірити чи A7 в результатах
-        const hasA7 = geoResults.some(r => r.roadNumber === 'A7');
-        console.log(`\n   ❓ A7 in results: ${hasA7 ? '✅ YES' : '❌ NO'}`);
-
-        if (!hasA7) {
-            console.log('\n⚠️ A7 NOT FOUND by geospatial query!');
-            console.log('   Possible reasons:');
-            console.log('   1. Coordinates are wrong');
-            console.log('   2. Line does not intersect A7 segments');
-            console.log('   3. MongoDB 2dsphere index issue');
+        if (a7Roads.length === 0) {
+            console.log('   ❌ NO A7 ROADS IN DATABASE!');
+            console.log('   Run: npm run seed:italy');
         }
 
-        // 5. Спробувати bounding box
-        console.log('\n🔍 Testing bounding box query...');
-        const lats = route.map(p => p.lat);
-        const lngs = route.map(p => p.lng);
+        // 3. Тестувати debug endpoint якщо є
+        console.log('\n3️⃣ Testing /api/tolls/debug (if available)');
+        try {
+            const debugResponse = await axios.post(`${API_URL}/api/tolls/debug`, {
+                route,
+                vehicleType: '2AxlesAuto'
+            });
 
-        const bbox = {
-            minLat: Math.min(...lats) - 0.5,
-            maxLat: Math.max(...lats) + 0.5,
-            minLng: Math.min(...lngs) - 0.5,
-            maxLng: Math.max(...lngs) + 0.5
-        };
-
-        console.log(`   Bounding box: ${JSON.stringify(bbox)}`);
-
-        const bboxResults = await TollRoad.find({
-            country: 'IT',
-            roadNumber: 'A7',
-            active: true
-        }).lean();
-
-        console.log(`\n   A7 segments coordinates:`);
-        bboxResults.forEach(road => {
-            const coords = road.geometry.coordinates;
-            const inBox = coords.every(([lng, lat]) =>
-                lat >= bbox.minLat && lat <= bbox.maxLat &&
-                lng >= bbox.minLng && lng <= bbox.maxLng
-            );
-            console.log(`   ${road.name}`);
-            console.log(`     Start: [${coords[0][0].toFixed(4)}, ${coords[0][1].toFixed(4)}]`);
-            console.log(`     End: [${coords[1][0].toFixed(4)}, ${coords[1][1].toFixed(4)}]`);
-            console.log(`     In bbox: ${inBox ? '✅' : '❌'}`);
-        });
-
-        // 6. Перевірити індекси
-        console.log('\n📊 Checking indexes...');
-        const indexes = await TollRoad.collection.getIndexes();
-        const has2dsphere = Object.values(indexes).some(idx =>
-            JSON.stringify(idx).includes('2dsphere')
-        );
-        console.log(`   2dsphere index exists: ${has2dsphere ? '✅' : '❌'}`);
-
-        if (!has2dsphere) {
-            console.log('\n⚠️ 2dsphere index MISSING!');
-            console.log('   Creating index...');
-            await TollRoad.collection.createIndex({ geometry: '2dsphere' });
-            console.log('   ✅ Index created!');
+            console.log('   Geospatial found:', debugResponse.data.data.results.geoIntersects.count);
+            console.log('   Roads found:', debugResponse.data.data.results.geoIntersects.roads);
+            console.log('   All segments available:', debugResponse.data.data.results.allSegmentsOfFoundRoads.count);
+        } catch (err) {
+            console.log('   ⚠️ Debug endpoint not available');
         }
 
-        // 7. Тест після створення індексу
-        if (!has2dsphere) {
-            console.log('\n🔍 Re-testing geospatial query after index creation...');
-            const retestResults = await TollRoad.find({
-                geometry: {
-                    $geoIntersects: {
-                        $geometry: routeLine
-                    }
-                },
-                country: 'IT',
-                roadNumber: 'A7',
-                active: true
-            }).lean();
+        // 4. Аналіз проблеми
+        console.log('\n📊 ANALYSIS:');
 
-            console.log(`   Found: ${retestResults.length} A7 segments`);
-            const hasA7Now = retestResults.length > 0;
-            console.log(`   A7 found: ${hasA7Now ? '✅ YES' : '❌ NO'}`);
+        if (calcResponse.data.data.isEstimated) {
+            console.log('   ❌ Using estimates - roads not found in DB');
+
+            if (a7Roads.length > 0) {
+                console.log('   ⚠️ BUT A7 exists in DB!');
+                console.log('   Possible issues:');
+                console.log('      1. Geospatial query not matching (coordinates issue)');
+                console.log('      2. Country detection wrong (detecting FR instead of IT)');
+                console.log('      3. Bounding box filter too strict');
+            }
+        } else {
+            const foundA7 = calcResponse.data.data.tolls.some(t => t.roadNumber === 'A7');
+            if (foundA7) {
+                console.log('   ✅ A7 found and returned correctly!');
+            } else {
+                console.log('   ⚠️ Found some roads but not A7');
+            }
         }
 
-        await mongoose.connection.close();
-        console.log('\n👋 Debug completed');
+        // 5. Перевірити країни
+        console.log('\n🗺️ COUNTRIES DETECTED:');
+        console.log('   ', calcResponse.data.data.countries.join(', '));
+
+        if (calcResponse.data.data.countries.includes('FR')) {
+            console.log('   ⚠️ France detected! This might cause issues.');
+            console.log('   Milano and Genova are in Italy, not France.');
+            console.log('   Check geospatial.detectCountries() function.');
+        }
 
     } catch (error) {
-        console.error('❌ Error:', error);
-        if (mongoose.connection.readyState === 1) {
-            await mongoose.connection.close();
+        console.error('❌ Error:', error.message);
+        if (error.response?.data) {
+            console.error('   Response:', JSON.stringify(error.response.data, null, 2));
         }
-        process.exit(1);
     }
 }
 

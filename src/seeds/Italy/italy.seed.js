@@ -13,10 +13,10 @@ const RATES_PER_KM = {
     SATAP: 0.073,        // Turin-Milan area
     A4HOLDING: 0.072,    // Brescia-Padova
     CAV: 0.068,          // Venezia area
-    AUTOBREN: 0.065,     // Brennero (знижено)
+    AUTOBREN: 0.065,     // Brennero
     SERRAVALLE: 0.077,   // Milan-Genoa
-    SALT: 0.080,         // Liguria (дорожче через тунелі)
-    CAS: 0.050           // Sicily (дешевше)
+    SALT: 0.080,         // Liguria
+    CAS: 0.050           // Sicily
 };
 
 /**
@@ -76,7 +76,7 @@ const A4 = [
 
 /**
  * A7 – Milano → Genova (через Serravalle)
- * ВАЖЛИВО: Починається з Assago (південний вихід з Milano)
+ * ВИПРАВЛЕНО: використовуємо Assago замість Milan для точного перетину
  */
 const A7 = [
     { from: 'Assago', to: 'Tortona', lengthKm: 50, operator: 'SERRAVALLE' },
