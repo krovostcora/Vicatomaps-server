@@ -528,9 +528,8 @@ async function seedPolandTolls() {
         }).filter(doc => doc !== null);
 
         // Видалити старі польські дороги
-        await TollRoad.deleteMany({ country: 'PL' });
+        await TollRoad.deleteMany({country: 'PL'});
         console.log('🗑️  Cleared existing Polish toll roads');
-
 
 
         // Додати нові
@@ -556,4 +555,8 @@ async function seedPolandTolls() {
     }
 }
 
-seedPolandTolls();
+if (require.main === module) {
+    seedPolandTolls();
+}
+
+module.exports = seedPolandTolls;
