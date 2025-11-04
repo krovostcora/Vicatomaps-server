@@ -29,10 +29,14 @@ module.exports = {
             ATMB: 0.110    // Тунелі (найдорожчі)
         },
         IT: {
-            AUTOSTRADE: 0.110,
-            SATAP: 0.105,
-            A4HOLDING: 0.100,
-            SALT: 0.115
+            AUTOSTRADE: 0.075,   // Основний оператор
+            SATAP: 0.073,        // Torino-Milano
+            A4HOLDING: 0.072,    // Brescia-Padova
+            CAV: 0.068,          // Venezia area
+            AUTOBREN: 0.065,     // Brennero
+            SERRAVALLE: 0.077,   // Milano-Genova
+            SALT: 0.080,         // Liguria (тунелі)
+            CAS: 0.050           // Sicily
         }
     },
 
@@ -187,12 +191,5 @@ module.exports = {
         ASF: 'Autoroutes du Sud de la France',
         AREA: 'Autoroutes Rhône-Alpes',
         ATMB: 'Autoroutes et Tunnel du Mont-Blanc'
-    },
-    IT_OPERATORS: {
-        AUTOSTRADE: 'Autostrade per l’Italia',
-        SATAP: 'Società Autostrada Torino-Alessandria-Piacenza',
-        A4HOLDING: 'A4 Holding (Brescia-Padova)',
-        SALT: 'Società Autostrada Ligure Toscana',
-        AISCAT: 'Associazione Italiana Società Concessionarie Autostrade e Trafori'
     }
 };

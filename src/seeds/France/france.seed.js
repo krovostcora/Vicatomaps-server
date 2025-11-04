@@ -334,6 +334,30 @@ const franceTollRoads = [
     },
 
     // ═══════════════════════════════════════════════════════════
+    // A52 - Marseille → Aix (connection) - ESCOTA
+    // ═══════════════════════════════════════════════════════════
+    {
+        lengthKm: 28,
+        from: 'Marseille Vieux-Port',
+        to: 'Aix-en-Provence',
+        roadNumber: 'A52',
+        operator: 'ESCOTA',
+        description: 'Marseille city exit to A8'
+    },
+
+    // ═══════════════════════════════════════════════════════════
+    // A52 - Marseille → Aix (connection) - ESCOTA
+    // ═══════════════════════════════════════════════════════════
+    {
+        lengthKm: 28,
+        from: 'Marseille Vieux-Port',
+        to: 'Aix-en-Provence',
+        roadNumber: 'A52',
+        operator: 'ESCOTA',
+        description: 'Marseille city exit to A8'
+    },
+
+    // ═══════════════════════════════════════════════════════════
     // A61 - Autoroute des Deux Mers (Toulouse → Narbonne) - VINCI
     // ═══════════════════════════════════════════════════════════
     {

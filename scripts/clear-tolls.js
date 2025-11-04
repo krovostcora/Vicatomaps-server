@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const TollRoad = require('../models/TollRoad');
+const TollRoad = require('../src/models/TollRoad');
 require('dotenv').config();
 
 async function clearTolls(country) {

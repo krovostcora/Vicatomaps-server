@@ -264,10 +264,10 @@ class TollService {
         const lats = route.map(p => p.lat);
         const lngs = route.map(p => p.lng);
 
-        const minLat = Math.min(...lats) - 0.3;
-        const maxLat = Math.max(...lats) + 0.3;
-        const minLng = Math.min(...lngs) - 0.3;
-        const maxLng = Math.max(...lngs) + 0.3;
+        const minLat = Math.min(...lats) - 0.2;
+        const maxLat = Math.max(...lats) + 0.2;
+        const minLng = Math.min(...lngs) - 0.2;
+        const maxLng = Math.max(...lngs) + 0.2;
 
         logger.info('Using bounding box search', {
             bbox: { minLat, maxLat, minLng, maxLng }
