@@ -130,12 +130,10 @@ class CostService {
         try {
             const tollInfo = route.tollInfo || {};
 
-            if (!tollInfo.hasTolls) {
-                return {
-                    total: 0,
-                    breakdown: []
-                };
+            if (!tollInfo || Object.keys(tollInfo).length === 0) {
+                console.log('⚠️ No Google toll info, trying TollGuru fallback...');
             }
+
 
             // Get toll estimates
             const tollEstimates = await tollService.estimateTolls(route);

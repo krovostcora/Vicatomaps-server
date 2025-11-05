@@ -1,60 +1,71 @@
 // services/tollService.js
 
+const tollGuruService = require('./tollGuruService');
+
 class TollService {
     /**
      * Estimate toll costs for a route
      */
     async estimateTolls(route) {
         try {
-            // Check both route-level and leg-level toll info
+            console.log('\n=== TOLL CALCULATION START ===');
+
+            // Step 1: Try TollGuru API (most accurate for all regions)
+            if (tollGuruService.isConfigured() && route.polyline) {
+                console.log('Attempting TollGuru API...');
+                const tollGuruData = await tollGuruService.getTollCosts(route.polyline);
+
+                if (tollGuruData && tollGuruData.total > 0) {
+                    console.log('✅ Using TollGuru data');
+                    return tollGuruData;
+                }
+            } else {
+                if (!route.polyline) {
+                    console.log('⚠️ No polyline available for TollGuru');
+                }
+                if (!tollGuruService.isConfigured()) {
+                    console.log('⚠️ TollGuru API key not configured');
+                }
+            }
+
+            // Step 2: Try Google's toll info (USA, Canada, India, Indonesia, Japan)
             const routeTollInfo = route.travelAdvisory?.tollInfo || route.tollInfo || {};
 
-            console.log(`Route-level toll info:`, JSON.stringify(routeTollInfo, null, 2));
+            if (routeTollInfo.estimatedPrice && routeTollInfo.estimatedPrice.length > 0) {
+                console.log('✅ Using Google toll data');
+                return this.parseGoogleTollInfo(routeTollInfo);
+            }
 
-            // Also check leg-level toll info
+            // Step 3: Check leg-level toll info
             let legTollInfo = [];
             if (route.legs && Array.isArray(route.legs)) {
                 route.legs.forEach((leg, index) => {
-                    if (leg.travelAdvisory?.tollInfo) {
-                        console.log(`Leg ${index} toll info:`, JSON.stringify(leg.travelAdvisory.tollInfo, null, 2));
+                    if (leg.travelAdvisory?.tollInfo?.estimatedPrice) {
                         legTollInfo.push(leg.travelAdvisory.tollInfo);
                     }
                 });
             }
 
-            // Try to use Google's toll calculations if available at route level
-            if (routeTollInfo.estimatedPrice && routeTollInfo.estimatedPrice.length > 0) {
-                console.log('Using route-level Google toll data');
-                return this.parseGoogleTollInfo(routeTollInfo);
-            }
-
-            // Try leg-level toll info
             if (legTollInfo.length > 0) {
-                console.log('Using leg-level Google toll data');
+                console.log('✅ Using Google leg-level toll data');
                 return this.parseGoogleTollInfoFromLegs(legTollInfo);
             }
 
-            // Fallback to our estimation since Google doesn't provide toll info
-            console.log('Google toll info not available, using estimated tolls');
+            // Step 4: Fallback to our estimates based on countries
+            console.log('⚠️ Using estimated tolls (no API data available)');
 
             const countries = route.countries || [];
 
-            console.log(`Calculating tolls for countries: ${countries.join(', ')}, distance: ${route.distance}km`);
-
             if (countries.length === 0) {
                 console.log('No countries detected, returning zero tolls');
-                return {
-                    total: 0,
-                    breakdown: []
-                };
+                return { total: 0, breakdown: [], source: 'none' };
             }
 
-            // Calculate toll costs based on distance and countries
             const breakdown = this.calculateTollBreakdown(route, []);
             const total = breakdown.reduce((sum, toll) => sum + toll.cost, 0);
 
-            console.log(`Total toll cost (estimated): €${total.toFixed(2)}`);
-            console.log('Toll breakdown:', breakdown);
+            console.log(`Estimated total: €${total.toFixed(2)}`);
+            console.log('=== TOLL CALCULATION END ===\n');
 
             return {
                 total: parseFloat(total.toFixed(2)),
@@ -64,11 +75,7 @@ class TollService {
 
         } catch (error) {
             console.error('Error estimating tolls:', error.message);
-            console.error('Stack:', error.stack);
-            return {
-                total: 0,
-                breakdown: []
-            };
+            return { total: 0, breakdown: [], source: 'error' };
         }
     }
 

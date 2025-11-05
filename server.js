@@ -67,6 +67,7 @@ app.use((req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Vicatomaps backend running on port ${PORT}`);
+  console.log('TOLLGURU_API_KEY:', process.env.TOLLGURU_API_KEY ? '✅ Loaded' : '❌ Missing');
 });
 
 module.exports = app;

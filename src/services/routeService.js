@@ -19,11 +19,13 @@ class RouteService {
                 },
                 travelMode: 'DRIVE',
                 routingPreference: 'TRAFFIC_AWARE',
+                extraComputations: ['TOLLS'],
                 computeAlternativeRoutes: alternatives,
                 routeModifiers: {
                     avoidTolls: false,
                     avoidHighways: false,
-                    avoidFerries: false
+                    avoidFerries: false,
+                    vehicleInfo: { emissionType: 'GASOLINE' }
                 },
                 languageCode: 'en-US',
                 units: 'METRIC'
@@ -40,7 +42,7 @@ class RouteService {
                 headers: {
                     'Content-Type': 'application/json',
                     'X-Goog-Api-Key': GOOGLE_ROUTES_API_KEY,
-                    'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs,routes.travelAdvisory,routes.travelAdvisory.tollInfo'
+                    'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs,routes.travelAdvisory,routes.travelAdvisory.tollInfo,routes.legs.travelAdvisory.tollInfo'
                 }
             });
 
@@ -83,7 +85,7 @@ class RouteService {
                 headers: {
                     'Content-Type': 'application/json',
                     'X-Goog-Api-Key': GOOGLE_ROUTES_API_KEY,
-                    'X-Goog-FieldMask': 'routes.legs.steps,routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline'
+                    'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs,routes.travelAdvisory,routes.travelAdvisory.tollInfo,routes.legs.travelAdvisory.tollInfo'
                 }
             });
 
@@ -116,6 +118,7 @@ class RouteService {
             const routeCountries = countries.length > 0 ? countries : this.extractCountries(route.legs);
 
             console.log(`Route ${index} toll info:`, JSON.stringify(tollInfo, null, 2));
+            console.log('Route polyline:', route.polyline?.encodedPolyline ? '✅ present' : '❌ missing');
 
             return {
                 routeIndex: index,
@@ -230,50 +233,82 @@ class RouteService {
      * Extract countries from address strings
      */
     extractCountriesFromAddresses(addresses) {
+        console.log('Extracting countries from addresses:', addresses);
+
         const countryMap = {
-            'Germany': 'DE',
-            'Deutschland': 'DE',
-            'France': 'FR',
-            'Czech Republic': 'CZ',
-            'Czechia': 'CZ',
-            'Austria': 'AT',
-            'Österreich': 'AT',
-            'Belgium': 'BE',
-            'België': 'BE',
-            'Belgique': 'BE',
-            'Netherlands': 'NL',
-            'Nederland': 'NL',
-            'Switzerland': 'CH',
-            'Schweiz': 'CH',
-            'Suisse': 'CH',
-            'Italy': 'IT',
-            'Italia': 'IT',
-            'Spain': 'ES',
-            'España': 'ES',
-            'Poland': 'PL',
-            'Polska': 'PL',
+            // European countries
+            'Germany': 'DE', 'Deutschland': 'DE',
+            'France': 'FR', 'Frankrijk': 'FR',
+            'Czech Republic': 'CZ', 'Czechia': 'CZ', 'Česko': 'CZ',
+            'Austria': 'AT', 'Österreich': 'AT',
+            'Belgium': 'BE', 'België': 'BE', 'Belgique': 'BE',
+            'Netherlands': 'NL', 'Nederland': 'NL',
+            'Switzerland': 'CH', 'Schweiz': 'CH', 'Suisse': 'CH',
+            'Italy': 'IT', 'Italia': 'IT',
+            'Spain': 'ES', 'España': 'ES',
+            'Poland': 'PL', 'Polska': 'PL',
             'Portugal': 'PT',
-            'Denmark': 'DK',
-            'Sweden': 'SE',
-            'Norway': 'NO'
+            'Denmark': 'DK', 'Danmark': 'DK',
+            'Sweden': 'SE', 'Sverige': 'SE',
+            'Norway': 'NO', 'Norge': 'NO',
+            'Finland': 'FI', 'Suomi': 'FI',
+            'Slovakia': 'SK', 'Slovensko': 'SK',
+            'Slovenia': 'SI', 'Slovenija': 'SI',
+            'Croatia': 'HR', 'Hrvatska': 'HR',
+            'Greece': 'GR', 'Ελλάδα': 'GR',
+            'Hungary': 'HU', 'Magyarország': 'HU',
+            'Romania': 'RO', 'România': 'RO',
+            'Bulgaria': 'BG', 'България': 'BG',
+            'Ukraine': 'UA', 'Україна': 'UA',
+            'Lithuania': 'LT', 'Lietuva': 'LT',
+            'Latvia': 'LV', 'Latvija': 'LV',
+            'Estonia': 'EE', 'Eesti': 'EE',
+
+            // North America
+            'United States': 'US', 'USA': 'US', 'US': 'US',
+            'Canada': 'CA',
+            'Mexico': 'MX', 'México': 'MX'
         };
 
         const countries = new Set();
 
         addresses.forEach(address => {
-            // Extract country from address (usually the last part after comma)
+            console.log('Processing address:', address);
+
+            // Split by comma and check each part
             const parts = address.split(',').map(p => p.trim());
 
-            for (let i = parts.length - 1; i >= 0; i--) {
-                const part = parts[i];
+            // Check each part against country map
+            for (const part of parts) {
                 if (countryMap[part]) {
-                    countries.add(countryMap[part]);
-                    break;
+                    const code = countryMap[part];
+                    console.log(`Found country: ${part} -> ${code}`);
+                    countries.add(code);
                 }
+            }
+
+            // Also check for state/region names that might indicate country
+            const lowerAddress = address.toLowerCase();
+
+            // Check for USA states
+            if (lowerAddress.includes('california') || lowerAddress.includes('texas') ||
+                lowerAddress.includes('florida') || lowerAddress.includes('georgia') ||
+                lowerAddress.includes('michigan') || lowerAddress.includes('atlanta')) {
+                console.log('Detected USA from state/city');
+                countries.add('US');
+            }
+
+            // Check for Canadian provinces
+            if (lowerAddress.includes('ontario') || lowerAddress.includes('quebec') ||
+                lowerAddress.includes('british columbia') || lowerAddress.includes('alberta')) {
+                console.log('Detected Canada from province');
+                countries.add('CA');
             }
         });
 
-        return Array.from(countries);
+        const result = Array.from(countries);
+        console.log('Final extracted countries:', result);
+        return result;
     }
 }
 
