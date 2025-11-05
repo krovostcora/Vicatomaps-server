@@ -21,6 +21,11 @@ router.post('/calculate', async (req, res, next) => {
     try {
         const { origin, destination, waypoints = [], vehicleId, optimizeFor = 'cost' } = req.body;
 
+        console.log('\n=== NEW ROUTE CALCULATION REQUEST ===');
+        console.log('Origin:', origin);
+        console.log('Destination:', destination);
+        console.log('Waypoints:', waypoints);
+
         // Validation
         if (!origin || !destination) {
             return res.status(400).json({
@@ -41,6 +46,8 @@ router.post('/calculate', async (req, res, next) => {
             waypoints,
             alternatives: true
         });
+
+        console.log(`Received ${routes.length} route(s) from Google`);
 
         // Calculate costs for each route
         const routesWithCosts = await Promise.all(
@@ -68,6 +75,7 @@ router.post('/calculate', async (req, res, next) => {
         });
 
     } catch (error) {
+        console.error('Route calculation error:', error.message);
         next(error);
     }
 });

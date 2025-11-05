@@ -6,14 +6,32 @@ class TollService {
      */
     async estimateTolls(route) {
         try {
-            const tollInfo = route.travelAdvisory?.tollInfo || route.tollInfo;
+            // Check both route-level and leg-level toll info
+            const routeTollInfo = route.travelAdvisory?.tollInfo || route.tollInfo || {};
 
-            console.log(`Toll info from Google:`, JSON.stringify(tollInfo, null, 2));
+            console.log(`Route-level toll info:`, JSON.stringify(routeTollInfo, null, 2));
 
-            // First, try to use Google's toll calculations if available
-            if (tollInfo && tollInfo.estimatedPrice && tollInfo.estimatedPrice.length > 0) {
-                console.log('Using Google toll data');
-                return this.parseGoogleTollInfo(tollInfo);
+            // Also check leg-level toll info
+            let legTollInfo = [];
+            if (route.legs && Array.isArray(route.legs)) {
+                route.legs.forEach((leg, index) => {
+                    if (leg.travelAdvisory?.tollInfo) {
+                        console.log(`Leg ${index} toll info:`, JSON.stringify(leg.travelAdvisory.tollInfo, null, 2));
+                        legTollInfo.push(leg.travelAdvisory.tollInfo);
+                    }
+                });
+            }
+
+            // Try to use Google's toll calculations if available at route level
+            if (routeTollInfo.estimatedPrice && routeTollInfo.estimatedPrice.length > 0) {
+                console.log('Using route-level Google toll data');
+                return this.parseGoogleTollInfo(routeTollInfo);
+            }
+
+            // Try leg-level toll info
+            if (legTollInfo.length > 0) {
+                console.log('Using leg-level Google toll data');
+                return this.parseGoogleTollInfoFromLegs(legTollInfo);
             }
 
             // Fallback to our estimation since Google doesn't provide toll info
@@ -52,6 +70,47 @@ class TollService {
                 breakdown: []
             };
         }
+    }
+
+    /**
+     * Parse Google's toll information from legs
+     */
+    parseGoogleTollInfoFromLegs(legTollInfos) {
+        console.log('Parsing toll info from legs');
+
+        const allPrices = [];
+
+        legTollInfos.forEach(tollInfo => {
+            if (tollInfo.estimatedPrice && Array.isArray(tollInfo.estimatedPrice)) {
+                allPrices.push(...tollInfo.estimatedPrice);
+            }
+        });
+
+        if (allPrices.length === 0) {
+            return {
+                total: 0,
+                breakdown: [],
+                source: 'google'
+            };
+        }
+
+        const breakdown = allPrices.map((price, index) => {
+            const amount = this.convertGooglePrice(price);
+            return {
+                description: `Toll section ${index + 1}`,
+                cost: amount,
+                currency: price.currencyCode || 'EUR',
+                source: 'google'
+            };
+        });
+
+        const total = breakdown.reduce((sum, item) => sum + item.cost, 0);
+
+        return {
+            total: parseFloat(total.toFixed(2)),
+            breakdown: breakdown,
+            source: 'google'
+        };
     }
 
     /**
@@ -163,103 +222,125 @@ class TollService {
     getCountryTollData(countryCode, distance) {
         // Toll rates and vignette costs based on real European toll systems
         const tollConfigs = {
+            // France - expensive tolls
             'FR': {
                 type: 'distance-based',
-                ratePerKm: 0.10, // France has expensive tolls, average €0.10/km
+                ratePerKm: 0.10, // €0.10/km average on French autoroutes
                 vignette: 0,
-                description: 'French motorway tolls'
+                description: 'French motorway tolls (péages)'
             },
+            // Italy
             'IT': {
                 type: 'distance-based',
-                ratePerKm: 0.08,
+                ratePerKm: 0.07,
                 vignette: 0,
-                description: 'Italian highway tolls'
+                description: 'Italian autostrada tolls'
             },
+            // Spain
             'ES': {
                 type: 'distance-based',
                 ratePerKm: 0.09,
                 vignette: 0,
-                description: 'Spanish toll roads'
+                description: 'Spanish autopista tolls'
             },
+            // Portugal
             'PT': {
                 type: 'distance-based',
                 ratePerKm: 0.10,
                 vignette: 0,
                 description: 'Portuguese toll roads'
             },
+            // Austria - vignette system
             'AT': {
                 type: 'vignette',
                 ratePerKm: 0,
                 vignette: 9.60, // 10-day vignette
-                description: 'Austrian vignette (10 days)'
+                description: 'Austrian vignette (10 days) - €9.60'
             },
+            // Switzerland - annual vignette
             'CH': {
                 type: 'vignette',
                 ratePerKm: 0,
-                vignette: 40.00, // Annual vignette
-                description: 'Swiss vignette (annual)'
+                vignette: 40.00, // Annual vignette (mandatory)
+                description: 'Swiss vignette (annual) - CHF 40 (~€40)'
             },
+            // Czech Republic - vignette
             'CZ': {
                 type: 'vignette',
                 ratePerKm: 0,
-                vignette: 8.50, // 210 CZK ≈ €8.50, 1-day vignette
-                description: 'Czech vignette (1 day)'
+                vignette: 8.50, // 210 CZK for 1 day ≈ €8.50
+                description: 'Czech vignette (1 day) - 210 CZK (~€8.50)'
             },
+            // Slovakia - vignette
             'SK': {
                 type: 'vignette',
                 ratePerKm: 0,
                 vignette: 10.00, // 10-day vignette
-                description: 'Slovak vignette (10 days)'
+                description: 'Slovak vignette (10 days) - €10'
             },
+            // Slovenia - vignette
             'SI': {
                 type: 'vignette',
                 ratePerKm: 0,
                 vignette: 15.00, // Weekly vignette
-                description: 'Slovenian vignette (weekly)'
+                description: 'Slovenian vignette (weekly) - €15'
             },
+            // Poland
             'PL': {
                 type: 'distance-based',
                 ratePerKm: 0.05,
                 vignette: 0,
                 description: 'Polish highway tolls'
             },
+            // Croatia
             'HR': {
                 type: 'distance-based',
                 ratePerKm: 0.06,
                 vignette: 0,
                 description: 'Croatian highway tolls'
             },
+            // Greece
             'GR': {
                 type: 'distance-based',
                 ratePerKm: 0.07,
                 vignette: 0,
                 description: 'Greek highway tolls'
             },
+            // Germany - FREE for cars
             'DE': {
                 type: 'free',
                 ratePerKm: 0,
                 vignette: 0,
-                description: 'Free for passenger vehicles'
+                description: 'Free motorways (trucks pay, cars free)'
             },
+            // Netherlands - FREE
             'NL': {
                 type: 'free',
                 ratePerKm: 0,
                 vignette: 0,
                 description: 'Free motorways'
             },
+            // Belgium - FREE
             'BE': {
                 type: 'free',
                 ratePerKm: 0,
                 vignette: 0,
                 description: 'Free motorways'
+            },
+            // USA states with tolls
+            'US': {
+                type: 'distance-based',
+                ratePerKm: 0.05, // Average, varies by state
+                vignette: 0,
+                description: 'US toll roads (varies by state)'
             }
         };
 
         const config = tollConfigs[countryCode] || {
             type: 'unknown',
-            ratePerKm: 0.05,
+            ratePerKm: 0,
             vignette: 0,
-            description: 'Estimated toll'
+            description: 'No toll data available'
         };
 
         const distanceCost = distance * config.ratePerKm;
