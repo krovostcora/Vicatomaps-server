@@ -1,57 +1,38 @@
+// models/FuelPrice.js
 const mongoose = require('mongoose');
 
 const fuelPriceSchema = new mongoose.Schema({
-    country: {
+    countryCode: {
         type: String,
         required: true,
-        index: true,
-    },
-    region: {
-        type: String,
-        default: null,
-    },
-    city: {
-        type: String,
-        default: null,
+        uppercase: true,
+        length: 2
     },
     fuelType: {
         type: String,
-        enum: ['petrol_95', 'petrol_98', 'diesel', 'lpg', 'electric'],
         required: true,
+        enum: ['petrol', 'diesel', 'electric'],
+        lowercase: true
     },
-    pricePerLiter: {
+    price: {
         type: Number,
         required: true,
+        min: 0
     },
     currency: {
         type: String,
         default: 'EUR',
-    },
-    stationName: {
-        type: String,
-        default: null,
-    },
-    location: {
-        type: {
-            type: String,
-            enum: ['Point'],
-            default: 'Point',
-        },
-        coordinates: {
-            type: [Number], // [longitude, latitude]
-            index: '2dsphere',
-        },
+        uppercase: true
     },
     updatedAt: {
         type: Date,
-        default: Date.now,
-    },
-    source: {
-        type: String,
-        default: 'manual',
-    },
+        default: Date.now
+    }
+}, {
+    timestamps: true
 });
 
-fuelPriceSchema.index({ country: 1, fuelType: 1, updatedAt: -1 });
+// Compound index for efficient lookups
+fuelPriceSchema.index({ countryCode: 1, fuelType: 1 }, { unique: true });
 
 module.exports = mongoose.model('FuelPrice', fuelPriceSchema);

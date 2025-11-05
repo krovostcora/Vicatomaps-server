@@ -1,48 +1,38 @@
+// models/Vehicle.js
 const mongoose = require('mongoose');
 
 const vehicleSchema = new mongoose.Schema({
-    manufacturer: {
+    name: {
         type: String,
         required: true,
-    },
-    model: {
-        type: String,
-        required: true,
-    },
-    year: {
-        type: Number,
-        required: true,
+        unique: true,
+        trim: true
     },
     fuelType: {
         type: String,
-        enum: ['petrol_95', 'petrol_98', 'diesel', 'lpg', 'electric', 'hybrid'],
         required: true,
+        enum: ['petrol', 'diesel', 'electric'],
+        lowercase: true
     },
-    fuelConsumption: {
-        city: {
-            type: Number, // L/100km or kWh/100km
-            required: true,
-        },
-        highway: {
-            type: Number,
-            required: true,
-        },
-        combined: {
-            type: Number,
-            required: true,
-        },
+    consumption: {
+        type: Number,
+        required: true,
+        min: 0
     },
-    vehicleClass: {
+    tankSize: {
+        type: Number,
+        required: true,
+        min: 0
+    },
+    description: {
         type: String,
-        enum: ['car', 'van', 'truck', 'motorcycle'],
-        default: 'car',
-    },
-    createdAt: {
-        type: Date,
-        default: Date.now,
-    },
+        trim: true
+    }
+}, {
+    timestamps: true,
+    // Ensure virtuals and all fields are included when converting to JSON
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
 });
-
-vehicleSchema.index({ manufacturer: 1, model: 1, year: 1 });
 
 module.exports = mongoose.model('Vehicle', vehicleSchema);
