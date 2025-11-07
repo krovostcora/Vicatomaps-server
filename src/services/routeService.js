@@ -1,144 +1,257 @@
 // services/routeService.js
-const axios = require('axios');
+const axios = require("axios");
 
+// ===============================
+// CONFIG
+// ===============================
 const GOOGLE_ROUTES_API_KEY = process.env.GOOGLE_ROUTES_API_KEY;
-const GOOGLE_ROUTES_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes';
+const GOOGLE_ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes";
 
+// Pretty logging
+function logHeader(title) {
+    console.log("\n================== " + title + " ==================\n");
+}
+
+// ===============================
+// HELPERS
+// ===============================
+
+// Parse "lat,lng" -> { latitude, longitude }
+function parseLatLng(str) {
+    const [lat, lng] = str.split(",").map(v => parseFloat(v.trim()));
+    return { latitude: lat, longitude: lng };
+}
+
+// Detect if string is "lat,lng"
+function isLatLng(str) {
+    return /^[\d\.\-]+,\s*[\d\.\-]+$/.test(str);
+}
+
+// Build Google Routes API waypoint (address or latLng)
+function buildWaypoint(value) {
+    if (!value) return null;
+    if (isLatLng(value)) {
+        return { location: { latLng: parseLatLng(value) } };
+    }
+    return { address: value };
+}
+
+// Parse duration inside Google API ("1234s" → 1234)
+function parseDuration(str) {
+    if (!str) return 0;
+    return parseInt(str.replace("s", ""));
+}
+
+// Try to extract country from address text
+function extractCountryFromAddressText(text) {
+    if (!text) return null;
+
+    const COUNTRY_MAP = {
+        "Ukraine": "UA",
+        "Україна": "UA",
+        "Poland": "PL",
+        "Polska": "PL",
+        "Germany": "DE",
+        "Deutschland": "DE",
+        "France": "FR",
+        "Czech Republic": "CZ",
+        "Czechia": "CZ",
+        "Spain": "ES",
+        "Italia": "IT",
+        "Italy": "IT",
+        "Portugal": "PT",
+        "Lithuania": "LT",
+        "Lietuva": "LT",
+        "Latvia": "LV",
+        "Estonia": "EE",
+        "Netherlands": "NL",
+        "Belgium": "BE",
+        "Switzerland": "CH",
+        "Austria": "AT",
+        "Slovakia": "SK",
+        "Hungary": "HU",
+        "Romania": "RO",
+        "Bulgaria": "BG",
+        "Greece": "GR",
+        "USA": "US",
+        "United States": "US",
+        "Canada": "CA"
+    };
+
+    for (const key of Object.keys(COUNTRY_MAP)) {
+        if (text.includes(key)) return COUNTRY_MAP[key];
+    }
+    return null;
+}
+
+// Extract countries from route legs
+function extractCountriesFromLegs(legs) {
+    const countries = new Set();
+
+    legs?.forEach(leg => {
+        if (!leg.startLocation?.address && !leg.endLocation?.address) return;
+
+        const startCountry = extractCountryFromAddressText(leg.startLocation?.address || "");
+        const endCountry = extractCountryFromAddressText(leg.endLocation?.address || "");
+
+        if (startCountry) countries.add(startCountry);
+        if (endCountry) countries.add(endCountry);
+    });
+
+    return Array.from(countries);
+}
+
+// Extract countries from origin/destination
+function extractCountriesFromRawAddresses(addressList) {
+    const countries = new Set();
+
+    addressList.forEach(addr => {
+        const c = extractCountryFromAddressText(addr);
+        if (c) countries.add(c);
+    });
+
+    return Array.from(countries);
+}
+
+
+// ===============================
+// MAIN SERVICE CLASS
+// ===============================
 class RouteService {
-    /**
-     * Get route alternatives from Google Routes API
-     */
+    // ------------------------------------------------
+    // ✅ GET ROUTES (with alternatives, tolls, legs, etc)
+    // ------------------------------------------------
     async getRoutes({ origin, destination, waypoints = [], alternatives = true }) {
+        logHeader("NEW ROUTE REQUEST");
+
+        console.log("Origin:", origin);
+        console.log("Destination:", destination);
+        console.log("Waypoints:", waypoints);
+
         try {
             const requestBody = {
-                origin: {
-                    address: origin
-                },
-                destination: {
-                    address: destination
-                },
-                travelMode: 'DRIVE',
-                routingPreference: 'TRAFFIC_AWARE',
-                extraComputations: ['TOLLS'],
+                origin: buildWaypoint(origin),
+                destination: buildWaypoint(destination),
+                travelMode: "DRIVE",
+                routingPreference: "TRAFFIC_AWARE_OPTIMAL",
                 computeAlternativeRoutes: alternatives,
+                extraComputations: ["TOLLS"],
                 routeModifiers: {
                     avoidTolls: false,
                     avoidHighways: false,
                     avoidFerries: false,
-                    vehicleInfo: { emissionType: 'GASOLINE' }
+                    vehicleInfo: { emissionType: "GASOLINE" }
                 },
-                languageCode: 'en-US',
-                units: 'METRIC'
+                languageCode: "en-US",
+                units: "METRIC"
             };
 
-            // Add waypoints if provided
+            // Add waypoints
             if (waypoints.length > 0) {
-                requestBody.intermediates = waypoints.map(waypoint => ({
-                    address: waypoint
-                }));
+                requestBody.intermediates = waypoints.map(buildWaypoint);
             }
 
+            // Request to Google API
             const response = await axios.post(GOOGLE_ROUTES_URL, requestBody, {
                 headers: {
-                    'Content-Type': 'application/json',
-                    'X-Goog-Api-Key': GOOGLE_ROUTES_API_KEY,
-                    'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs,routes.travelAdvisory,routes.travelAdvisory.tollInfo,routes.legs.travelAdvisory.tollInfo'
+                    "Content-Type": "application/json",
+                    "X-Goog-Api-Key": GOOGLE_ROUTES_API_KEY,
+                    "X-Goog-FieldMask":
+                        "routes.distanceMeters,routes.duration," +
+                        "routes.polyline.encodedPolyline,routes.legs," +
+                        "routes.travelAdvisory.tollInfo," +
+                        "routes.legs.travelAdvisory.tollInfo"
                 }
             });
 
-            // Extract countries from addresses
-            const allAddresses = [origin, destination, ...waypoints];
-            const countries = this.extractCountriesFromAddresses(allAddresses);
+            // Parse countries
+            const inputCountries = extractCountriesFromRawAddresses([origin, destination, ...waypoints]);
 
-            return this.parseRoutesResponse(response.data, countries);
+            return this.parseRoutesResponse(response.data, inputCountries);
 
-        } catch (error) {
-            console.error('Error fetching routes:', error.response?.data || error.message);
-            throw new Error('Failed to fetch routes from Google Routes API');
+        } catch (err) {
+            console.error("Error fetching routes:", err.response?.data || err.message);
+            throw new Error("Failed to fetch routes from Google Routes API");
         }
     }
 
-    /**
-     * Get detailed turn-by-turn directions
-     */
+
+    // ------------------------------------------------
+    // ✅ GET TURN-BY-TURN DIRECTIONS
+    // ------------------------------------------------
     async getDirections({ origin, destination, waypoints = [] }) {
+        logHeader("NEW DIRECTIONS REQUEST");
+
         try {
             const requestBody = {
-                origin: {
-                    address: origin
-                },
-                destination: {
-                    address: destination
-                },
-                travelMode: 'DRIVE',
-                languageCode: 'en-US',
-                units: 'METRIC'
+                origin: buildWaypoint(origin),
+                destination: buildWaypoint(destination),
+                travelMode: "DRIVE",
+                languageCode: "en-US",
+                units: "METRIC"
             };
 
             if (waypoints.length > 0) {
-                requestBody.intermediates = waypoints.map(waypoint => ({
-                    address: waypoint
-                }));
+                requestBody.intermediates = waypoints.map(buildWaypoint);
             }
 
             const response = await axios.post(GOOGLE_ROUTES_URL, requestBody, {
                 headers: {
-                    'Content-Type': 'application/json',
-                    'X-Goog-Api-Key': GOOGLE_ROUTES_API_KEY,
-                    'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs,routes.travelAdvisory,routes.travelAdvisory.tollInfo,routes.legs.travelAdvisory.tollInfo'
+                    "Content-Type": "application/json",
+                    "X-Goog-Api-Key": GOOGLE_ROUTES_API_KEY,
+                    "X-Goog-FieldMask":
+                        "routes.polyline.encodedPolyline,routes.legs.steps.navigationInstruction," +
+                        "routes.legs.steps.polyline.encodedPolyline,routes.legs.steps.distanceMeters," +
+                        "routes.legs.steps.staticDuration,routes.distanceMeters,routes.duration"
                 }
             });
 
             return this.parseDirectionsResponse(response.data);
 
-        } catch (error) {
-            console.error('Error fetching directions:', error.response?.data || error.message);
-            throw new Error('Failed to fetch directions from Google Routes API');
+        } catch (err) {
+            console.error("Error fetching directions:", err.response?.data || err.message);
+            throw new Error("Failed to fetch directions from Google Routes API");
         }
     }
 
-    /**
-     * Parse routes response from Google API
-     */
-    parseRoutesResponse(data, countries = []) {
+
+    // ------------------------------------------------
+    // ✅ PARSE ROUTES RESPONSE
+    // ------------------------------------------------
+    parseRoutesResponse(data, preDetectedCountries = []) {
         if (!data.routes || data.routes.length === 0) {
-            throw new Error('No routes found');
+            throw new Error("No routes found");
         }
 
         return data.routes.map((route, index) => {
-            const totalDistance = route.distanceMeters || 0;
-            const duration = this.parseDuration(route.duration);
-            const polyline = route.polyline?.encodedPolyline || '';
+            const legs = route.legs || [];
 
-            // Extract full travel advisory including toll information
-            const travelAdvisory = route.travelAdvisory || {};
-            const tollInfo = travelAdvisory.tollInfo || {};
+            const countries =
+                preDetectedCountries.length > 0
+                    ? preDetectedCountries
+                    : extractCountriesFromLegs(legs);
 
-            // Use provided countries or try to extract from route
-            const routeCountries = countries.length > 0 ? countries : this.extractCountries(route.legs);
-
-            console.log(`Route ${index} toll info:`, JSON.stringify(tollInfo, null, 2));
-            console.log('Route polyline:', route.polyline?.encodedPolyline ? '✅ present' : '❌ missing');
+            const tollInfo = route.travelAdvisory?.tollInfo || {};
 
             return {
                 routeIndex: index,
-                distance: totalDistance / 1000, // Convert to km
-                duration: duration,
-                polyline: polyline,
-                legs: route.legs,
-                travelAdvisory: travelAdvisory,
-                tollInfo: tollInfo,
-                countries: routeCountries
+                distanceKm: (route.distanceMeters || 0) / 1000,
+                durationSec: parseDuration(route.duration),
+                polyline: route.polyline?.encodedPolyline || "",
+                legs: legs,
+                tollInfo,
+                countries
             };
         });
     }
 
-    /**
-     * Parse directions response
-     */
+
+    // ------------------------------------------------
+    // ✅ PARSE DIRECTIONS RESPONSE (step-by-step)
+    // ------------------------------------------------
     parseDirectionsResponse(data) {
         if (!data.routes || data.routes.length === 0) {
-            throw new Error('No directions found');
+            throw new Error("No directions found");
         }
 
         const route = data.routes[0];
@@ -147,168 +260,20 @@ class RouteService {
         route.legs?.forEach(leg => {
             leg.steps?.forEach(step => {
                 steps.push({
-                    instruction: step.navigationInstruction?.instructions || '',
-                    distance: step.distanceMeters / 1000,
-                    duration: this.parseDuration(step.staticDuration),
-                    polyline: step.polyline?.encodedPolyline || ''
+                    instruction: step.navigationInstruction?.instructions || "",
+                    distanceKm: (step.distanceMeters || 0) / 1000,
+                    durationSec: parseDuration(step.staticDuration),
+                    polyline: step.polyline?.encodedPolyline || ""
                 });
             });
         });
 
         return {
-            totalDistance: route.distanceMeters / 1000,
-            totalDuration: this.parseDuration(route.duration),
-            polyline: route.polyline?.encodedPolyline || '',
-            steps: steps
+            totalDistanceKm: (route.distanceMeters || 0) / 1000,
+            totalDurationSec: parseDuration(route.duration),
+            polyline: route.polyline?.encodedPolyline || "",
+            steps
         };
-    }
-
-    /**
-     * Parse duration string (e.g., "3600s" to seconds)
-     */
-    parseDuration(durationString) {
-        if (!durationString) return 0;
-        return parseInt(durationString.replace('s', ''));
-    }
-
-    /**
-     * Extract countries from route legs
-     */
-    extractCountries(legs) {
-        const countries = new Set();
-
-        if (!legs || legs.length === 0) {
-            return [];
-        }
-
-        legs.forEach(leg => {
-            if (!leg.steps) return;
-
-            leg.steps.forEach(step => {
-                // Extract country from end location
-                if (step.endLocation) {
-                    // Google Routes API v2 provides location data
-                    const location = step.endLocation;
-
-                    // Try to get country from various possible fields
-                    if (location.address) {
-                        // Extract country code from address string
-                        const addressParts = location.address.split(',').map(p => p.trim());
-                        const lastPart = addressParts[addressParts.length - 1];
-
-                        // Map common country names to codes
-                        const countryMap = {
-                            'Germany': 'DE',
-                            'Deutschland': 'DE',
-                            'France': 'FR',
-                            'Czech Republic': 'CZ',
-                            'Czechia': 'CZ',
-                            'Austria': 'AT',
-                            'Belgium': 'BE',
-                            'Netherlands': 'NL',
-                            'Switzerland': 'CH',
-                            'Italy': 'IT',
-                            'Spain': 'ES',
-                            'Poland': 'PL'
-                        };
-
-                        if (countryMap[lastPart]) {
-                            countries.add(countryMap[lastPart]);
-                        }
-                    }
-                }
-            });
-        });
-
-        // If no countries detected from steps, try to infer from origin/destination
-        if (countries.size === 0) {
-            // This is a fallback - you should ideally geocode origin/destination
-            return ['DE', 'CZ', 'FR']; // Default for Berlin -> Prague -> Paris
-        }
-
-        return Array.from(countries);
-    }
-
-    /**
-     * Extract countries from address strings
-     */
-    extractCountriesFromAddresses(addresses) {
-        console.log('Extracting countries from addresses:', addresses);
-
-        const countryMap = {
-            // European countries
-            'Germany': 'DE', 'Deutschland': 'DE',
-            'France': 'FR', 'Frankrijk': 'FR',
-            'Czech Republic': 'CZ', 'Czechia': 'CZ', 'Česko': 'CZ',
-            'Austria': 'AT', 'Österreich': 'AT',
-            'Belgium': 'BE', 'België': 'BE', 'Belgique': 'BE',
-            'Netherlands': 'NL', 'Nederland': 'NL',
-            'Switzerland': 'CH', 'Schweiz': 'CH', 'Suisse': 'CH',
-            'Italy': 'IT', 'Italia': 'IT',
-            'Spain': 'ES', 'España': 'ES',
-            'Poland': 'PL', 'Polska': 'PL',
-            'Portugal': 'PT',
-            'Denmark': 'DK', 'Danmark': 'DK',
-            'Sweden': 'SE', 'Sverige': 'SE',
-            'Norway': 'NO', 'Norge': 'NO',
-            'Finland': 'FI', 'Suomi': 'FI',
-            'Slovakia': 'SK', 'Slovensko': 'SK',
-            'Slovenia': 'SI', 'Slovenija': 'SI',
-            'Croatia': 'HR', 'Hrvatska': 'HR',
-            'Greece': 'GR', 'Ελλάδα': 'GR',
-            'Hungary': 'HU', 'Magyarország': 'HU',
-            'Romania': 'RO', 'România': 'RO',
-            'Bulgaria': 'BG', 'България': 'BG',
-            'Ukraine': 'UA', 'Україна': 'UA',
-            'Lithuania': 'LT', 'Lietuva': 'LT',
-            'Latvia': 'LV', 'Latvija': 'LV',
-            'Estonia': 'EE', 'Eesti': 'EE',
-
-            // North America
-            'United States': 'US', 'USA': 'US', 'US': 'US',
-            'Canada': 'CA',
-            'Mexico': 'MX', 'México': 'MX'
-        };
-
-        const countries = new Set();
-
-        addresses.forEach(address => {
-            console.log('Processing address:', address);
-
-            // Split by comma and check each part
-            const parts = address.split(',').map(p => p.trim());
-
-            // Check each part against country map
-            for (const part of parts) {
-                if (countryMap[part]) {
-                    const code = countryMap[part];
-                    console.log(`Found country: ${part} -> ${code}`);
-                    countries.add(code);
-                }
-            }
-
-            // Also check for state/region names that might indicate country
-            const lowerAddress = address.toLowerCase();
-
-            // Check for USA states
-            if (lowerAddress.includes('california') || lowerAddress.includes('texas') ||
-                lowerAddress.includes('florida') || lowerAddress.includes('georgia') ||
-                lowerAddress.includes('michigan') || lowerAddress.includes('atlanta')) {
-                console.log('Detected USA from state/city');
-                countries.add('US');
-            }
-
-            // Check for Canadian provinces
-            if (lowerAddress.includes('ontario') || lowerAddress.includes('quebec') ||
-                lowerAddress.includes('british columbia') || lowerAddress.includes('alberta')) {
-                console.log('Detected Canada from province');
-                countries.add('CA');
-            }
-        });
-
-        const result = Array.from(countries);
-        console.log('Final extracted countries:', result);
-        return result;
     }
 }
 
