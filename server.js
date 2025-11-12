@@ -17,6 +17,9 @@ const PORT = process.env.PORT || 3000;
 // Connect to MongoDB
 connectDB();
 
+// Trust proxy - IMPORTANT for Render deployment
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 app.use(cors());
@@ -67,6 +70,7 @@ app.use((req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Vicatomaps backend running on port ${PORT}`);
+  console.log('GOOGLE_ROUTES_API_KEY:', process.env.GOOGLE_ROUTES_API_KEY ? '✅ Loaded' : '❌ Missing');
   console.log('TOLLGURU_API_KEY:', process.env.TOLLGURU_API_KEY ? '✅ Loaded' : '❌ Missing');
 });
 
