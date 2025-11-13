@@ -1,5 +1,5 @@
 // services/tollService.js
-import tollGuruService from './tollGuruService.js';
+const tollGuruService = require ('./tollGuruService.js');
 
 class TollService {
     /**
@@ -407,4 +407,4 @@ class TollService {
     }
 }
 
-export default new TollService();
+module.exports = new TollService();

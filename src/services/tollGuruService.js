@@ -1,7 +1,7 @@
 // services/tollGuruService.js
-import axios from "axios";
-import crypto from "crypto";
-import TollCache from "../models/TollCache.js";
+const axios = require("axios");
+const crypto = require("crypto");
+const TollCache = require("../models/TollCache");
 
 const TOLLGURU_API_KEY = process.env.TOLLGURU_API_KEY;
 const TOLL_TALLY_URL = "https://apis.tollguru.com/toll/v2/complete-polyline-from-mapping-service";
@@ -166,4 +166,4 @@ class TollGuruService {
     }
 }
 
-export default new TollGuruService();
+module.exports = new TollGuruService();

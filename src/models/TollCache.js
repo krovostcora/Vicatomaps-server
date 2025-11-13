@@ -1,4 +1,5 @@
-import mongoose from "mongoose";
+// models/TollCache.js
+const mongoose = require("mongoose");
 
 const tollCacheSchema = new mongoose.Schema({
     hash: { type: String, unique: true },
@@ -6,4 +7,4 @@ const tollCacheSchema = new mongoose.Schema({
     updatedAt: Date
 });
 
-export default mongoose.model("TollCache", tollCacheSchema);
+module.exports = mongoose.model("TollCache", tollCacheSchema);
