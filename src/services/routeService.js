@@ -14,7 +14,7 @@ class RouteService {
             destination: this.buildWaypoint(destination),
             travelMode: 'DRIVE',
             routingPreference: 'TRAFFIC_AWARE_OPTIMAL',
-            extraComputations: ['TOLLS'],
+            extraComputations: [],
             computeAlternativeRoutes: alternatives,
             routeModifiers: {
                 avoidTolls: false,
