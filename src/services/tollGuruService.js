@@ -23,7 +23,7 @@ class TollGuruService {
 
         // 1️⃣ Try reading from cache (valid 14 days)
         const cached = await TollCache.findOne({ hash });
-        if (cached && Date.now() - cached.updatedAt.getTime() < 1000 * 60 * 60 * 24 * 14) {
+        if (cached && Date.now() - cached.updatedAt.getTime() < 1000 * 60 * 60 * 24 * 180) { // cash every 6 months
             console.log("✅ Using cached TollGuru data");
             return cached.data;
         }
