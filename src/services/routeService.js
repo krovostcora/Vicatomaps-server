@@ -14,7 +14,6 @@ class RouteService {
             destination: this.buildWaypoint(destination),
             travelMode: 'DRIVE',
             routingPreference: 'TRAFFIC_AWARE_OPTIMAL',
-            extraComputations: [],
             computeAlternativeRoutes: alternatives,
             routeModifiers: {
                 avoidTolls: false,
@@ -35,7 +34,7 @@ class RouteService {
                 'Content-Type': 'application/json',
                 'X-Goog-Api-Key': GOOGLE_ROUTES_API_KEY,
                 'X-Goog-FieldMask':
-                    'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs,routes.travelAdvisory,tollInfo'
+                    'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs,routes.travelAdvisory'
             }
         });
 
