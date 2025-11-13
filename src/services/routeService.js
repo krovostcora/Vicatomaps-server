@@ -1,143 +1,101 @@
-// services/routeService.js
 const axios = require('axios');
+const polyline = require('@mapbox/polyline');
 
 const GOOGLE_ROUTES_API_KEY = process.env.GOOGLE_ROUTES_API_KEY;
 const GOOGLE_ROUTES_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes';
 
-/**
- * Build waypoint object for Google Routes API
- * Supports: {lat, lon}, "address string", {address: "..."}
- */
-function buildWaypoint(value) {
-    if (!value) return null;
-
-    // Format 1: {lat, lon}
-    if (value.lat !== undefined && value.lon !== undefined) {
-        return {
-            location: {
-                latLng: {
-                    latitude: value.lat,
-                    longitude: value.lon
-                }
-            }
-        };
-    }
-
-    // Format 2: {latitude, longitude}
-    if (value.latitude !== undefined && value.longitude !== undefined) {
-        return {
-            location: {
-                latLng: {
-                    latitude: value.latitude,
-                    longitude: value.longitude
-                }
-            }
-        };
-    }
-
-    // Format 3: string address
-    if (typeof value === 'string') {
-        return { address: value };
-    }
-
-    // Format 4: {address: "..."}
-    if (value.address) {
-        return { address: value.address };
-    }
-
-    // Default: treat as address string
-    return { address: String(value) };
-}
-
 class RouteService {
-    /**
-     * Get route alternatives from Google Routes API
-     */
     async getRoutes({ origin, destination, waypoints = [], alternatives = true }) {
-        try {
-            console.log('\n========== NEW ROUTE REQUEST ==========');
-            console.log('Origin:', origin);
-            console.log('Destination:', destination);
-            console.log('Waypoints:', waypoints);
+        console.log('\n========== NEW ROUTE REQUEST ==========');
+        const requestBody = {
+            origin: this.buildWaypoint(origin),
+            destination: this.buildWaypoint(destination),
+            travelMode: 'DRIVE',
+            routingPreference: 'TRAFFIC_AWARE_OPTIMAL',
+            extraComputations: ['TOLLS'],
+            computeAlternativeRoutes: alternatives,
+            routeModifiers: {
+                avoidTolls: false,
+                avoidHighways: false,
+                avoidFerries: false,
+                vehicleInfo: { emissionType: 'GASOLINE' }
+            },
+            languageCode: 'en-US',
+            units: 'METRIC'
+        };
 
-            const requestBody = {
-                origin: buildWaypoint(origin),
-                destination: buildWaypoint(destination),
-                travelMode: 'DRIVE',
-                routingPreference: 'TRAFFIC_AWARE_OPTIMAL',
-                extraComputations: ['TOLLS'],
-                computeAlternativeRoutes: alternatives,
-                routeModifiers: {
-                    avoidTolls: false,
-                    avoidHighways: false,
-                    avoidFerries: false,
-                    vehicleInfo: { emissionType: 'GASOLINE' }
-                },
-                languageCode: 'en-US',
-                units: 'METRIC'
-            };
+        if (waypoints.length > 0) {
+            requestBody.intermediates = waypoints.map(wp => this.buildWaypoint(wp));
+        }
 
-            // Add waypoints if provided
-            if (waypoints.length > 0) {
-                requestBody.intermediates = waypoints.map(wp => buildWaypoint(wp));
+        const response = await axios.post(GOOGLE_ROUTES_URL, requestBody, {
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Goog-Api-Key': GOOGLE_ROUTES_API_KEY,
+                'X-Goog-FieldMask':
+                    'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs,routes.travelAdvisory,routes.travelAdvisory.tollInfo'
             }
-
-            console.log('Request body:', JSON.stringify(requestBody, null, 2));
-
-            const response = await axios.post(GOOGLE_ROUTES_URL, requestBody, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Goog-Api-Key': GOOGLE_ROUTES_API_KEY,
-                    'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs,routes.travelAdvisory,routes.travelAdvisory.tollInfo,routes.legs.travelAdvisory.tollInfo'
-                }
-            });
-
-            console.log('✅ Google Routes API response received');
-
-            return this.parseRoutesResponse(response.data);
-
-        } catch (error) {
-            console.error('❌ Error fetching routes:', error.response?.data || error.message);
-            throw new Error('Failed to fetch routes from Google Routes API');
-        }
-    }
-
-    /**
-     * Parse routes response from Google API
-     */
-    parseRoutesResponse(data) {
-        if (!data.routes || data.routes.length === 0) {
-            throw new Error('No routes found');
-        }
-
-        return data.routes.map((route, index) => {
-            const totalDistance = route.distanceMeters || 0;
-            const duration = this.parseDuration(route.duration);
-            const polyline = route.polyline?.encodedPolyline || '';
-
-            const travelAdvisory = route.travelAdvisory || {};
-            const tollInfo = travelAdvisory.tollInfo || {};
-
-            console.log(`Route ${index}: ${(totalDistance/1000).toFixed(2)} km, polyline: ${polyline ? '✅' : '❌'}`);
-
-            return {
-                routeIndex: index,
-                distance: totalDistance / 1000, // km
-                duration: duration,
-                polyline: polyline,
-                legs: route.legs,
-                travelAdvisory: travelAdvisory,
-                tollInfo: tollInfo,
-            };
         });
+
+        console.log('✅ Google Routes API response received');
+
+        const parsed = this.parseRoutesResponse(response.data);
+
+        // Detect countries for each route
+        for (const route of parsed) {
+            route.countries = await this.detectCountriesFromPolyline(route.polyline);
+        }
+
+        return parsed;
     }
 
-    /**
-     * Parse duration string (e.g., "3600s" to seconds)
-     */
+    parseRoutesResponse(data) {
+        if (!data.routes || data.routes.length === 0) throw new Error('No routes found');
+
+        return data.routes.map((route, index) => ({
+            routeIndex: index,
+            distance: (route.distanceMeters || 0) / 1000,
+            duration: this.parseDuration(route.duration),
+            polyline: route.polyline?.encodedPolyline || '',
+            legs: route.legs || [],
+            tollInfo: route.travelAdvisory?.tollInfo || {}
+        }));
+    }
+
     parseDuration(durationString) {
-        if (!durationString) return 0;
-        return parseInt(durationString.replace('s', ''));
+        return durationString ? parseInt(durationString.replace('s', '')) : 0;
+    }
+
+    buildWaypoint(value) {
+        if (!value) return null;
+        if (value.lat !== undefined && value.lon !== undefined)
+            return { location: { latLng: { latitude: value.lat, longitude: value.lon } } };
+        if (typeof value === 'string') return { address: value };
+        return { address: String(value) };
+    }
+
+    async detectCountriesFromPolyline(encodedPolyline) {
+        if (!encodedPolyline) return [];
+
+        const points = polyline.decode(encodedPolyline);
+        if (points.length === 0) return [];
+
+        // sample every ~200th point to reduce API load
+        const sampled = points.filter((_, i) => i % 200 === 0);
+
+        const countries = new Set();
+        for (const [lat, lon] of sampled) {
+            try {
+                const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lon}&key=${process.env.GOOGLE_ROUTES_API_KEY}&result_type=country`;
+                const res = await axios.get(url);
+                const country = res.data?.results?.[0]?.address_components?.[0]?.short_name;
+                if (country) countries.add(country);
+            } catch (err) {
+                console.warn('Reverse geocode failed for point:', lat, lon);
+            }
+        }
+
+        return Array.from(countries);
     }
 }
 

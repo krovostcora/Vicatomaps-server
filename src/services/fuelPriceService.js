@@ -1,19 +1,60 @@
+// src/services/fuelPriceService.js
 const FuelPrice = require('../models/FuelPrice');
 
-async function getFuelPrice(countryCode, fuelType) {
-    const fuel = await FuelPrice.findOne({ countryCode: countryCode.toUpperCase() });
-    if (!fuel) return null;
-    const type = fuelType.toLowerCase();
-    return fuel[type] ?? null;
+const countryMap = {
+    DE: 'DEU', PL: 'POL', BE: 'BEL', FR: 'FRA', ES: 'ESP', PT: 'PRT',
+    IT: 'ITA', NL: 'NLD', AT: 'AUT', CZ: 'CZE', SK: 'SVK', HU: 'HUN',
+    CH: 'CHE', SI: 'SVN', HR: 'HRV', RO: 'ROU', BG: 'BGR', GR: 'GRC',
+    UA: 'UKR', GB: 'GBR', IE: 'IRL', DK: 'DNK', SE: 'SWE', NO: 'NOR',
+    FI: 'FIN', LT: 'LTU', LV: 'LVA', EE: 'EST'
+};
+
+const fuelTypeMap = {
+    petrol: 'gasoline',
+    gasoline: 'gasoline',
+    diesel: 'diesel',
+    lpg: 'lpg'
+};
+
+/**
+ * Convert 2-letter ISO code (e.g. DE) to 3-letter code (e.g. DEU).
+ */
+function mapTo3Letter(code2) {
+    return countryMap[code2.toUpperCase()] || code2.toUpperCase();
 }
 
+function normalizeFuelType(type) {
+    const key = type.toLowerCase();
+    return fuelTypeMap[key] || 'gasoline';
+}
+
+/**
+ * Get single country's fuel price.
+ */
+async function getFuelPrice(countryCode, fuelType) {
+    const code = countryCode.length === 2 ? mapTo3Letter(countryCode) : countryCode.toUpperCase();
+    const normalizedType = normalizeFuelType(fuelType);
+    const fuel = await FuelPrice.findOne({ countryCode: code });
+    if (!fuel) return null;
+
+    return fuel[normalizedType] ?? null;
+}
+
+/**
+ * Get multiple countries' fuel prices.
+ */
 async function getFuelPrices(countries, fuelType) {
-    const type = fuelType.toLowerCase();
-    const fuels = await FuelPrice.find({ countryCode: { $in: countries.map(c => c.toUpperCase()) } });
+    const mappedCodes = countries.map(c =>
+        c.length === 2 ? mapTo3Letter(c) : c.toUpperCase()
+    );
+
+    const normalizedType = normalizeFuelType(fuelType);
+    const fuels = await FuelPrice.find({ countryCode: { $in: mappedCodes } });
+
     return fuels.map(f => ({
         countryCode: f.countryCode,
         country: f.country,
-        price: f[type] ?? null
+        price: f[normalizedType] ?? null
     }));
 }
 
