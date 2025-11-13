@@ -1,38 +1,12 @@
-// models/RouteCache.js
+// src/models/RouteCache.js
 const mongoose = require('mongoose');
 
-const routeCacheSchema = new mongoose.Schema({
-    origin: {
-        type: String,
-        required: true,
-        trim: true
-    },
-    destination: {
-        type: String,
-        required: true,
-        trim: true
-    },
-    waypoints: [{
-        type: String,
-        trim: true
-    }],
-    routeData: {
-        type: mongoose.Schema.Types.Mixed,
-        required: true
-    },
-    expiresAt: {
-        type: Date,
-        required: true,
-        index: true
-    }
-}, {
-    timestamps: true
+const RouteCacheSchema = new mongoose.Schema({
+    origin: { type: String, required: true },        // e.g. "52.2297,21.0122"
+    destination: { type: String, required: true },   // e.g. "38.7223,-9.1393"
+    waypoints: [String],                             // optional intermediate points
+    countries: [String],                             // detected countries, e.g. ["PL", "DE", "FR"]
+    createdAt: { type: Date, default: Date.now, expires: '30d' } // auto-delete after 30 days
 });
 
-// Compound index for route lookups
-routeCacheSchema.index({ origin: 1, destination: 1 });
-
-// TTL index to automatically delete expired cache entries
-routeCacheSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-
-module.exports = mongoose.model('RouteCache', routeCacheSchema);
+module.exports = mongoose.model('RouteCache', RouteCacheSchema);
