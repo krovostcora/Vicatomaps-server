@@ -1,126 +1,107 @@
 // src/services/routeService.js
-const axios = require('axios');
-const polyline = require('@mapbox/polyline');
-const RouteCache = require('../models/RouteCache');
+const axios = require("axios");
+const polyline = require("@mapbox/polyline");
+const crypto = require("crypto");
+const GoogleRouteCache = require("../models/GoogleRouteCache");
+
 const GOOGLE_ROUTES_API_KEY = process.env.GOOGLE_ROUTES_API_KEY;
-const GOOGLE_ROUTES_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes';
+const GOOGLE_ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes";
+
+const CACHE_TTL = 1000 * 60 * 60 * 24 * 60; // 2 months
 
 class RouteService {
     async getRoutes({ origin, destination, waypoints = [], alternatives = true }) {
-        console.log('\n========== NEW ROUTE REQUEST ==========');
+        console.log("\n========== NEW ROUTE REQUEST ==========");
 
+        // 1️⃣ HASH для кешу (унікальний для O/D/W)
+        const hash = crypto.createHash("sha256")
+            .update(JSON.stringify({ origin, destination, waypoints, alternatives }))
+            .digest("hex");
+
+        // 2️⃣ Перевіряємо кеш
+        const cached = await GoogleRouteCache.findOne({ hash });
+        if (cached) {
+            const age = Date.now() - cached.updatedAt.getTime();
+
+            if (age < CACHE_TTL) {
+                console.log("⚡ Using cached Google route data");
+                return cached.data;
+            } else {
+                console.log("⚠ Cached Google route expired — refreshing");
+            }
+        }
+
+        // 3️⃣ Формуємо запит до Google
         const requestBody = {
             origin: this.buildWaypoint(origin),
             destination: this.buildWaypoint(destination),
-            travelMode: 'DRIVE',
-            routingPreference: 'TRAFFIC_AWARE_OPTIMAL',
+            travelMode: "DRIVE",
+            routingPreference: "TRAFFIC_AWARE_OPTIMAL",
             computeAlternativeRoutes: alternatives,
             routeModifiers: {
                 avoidTolls: false,
                 avoidHighways: false,
                 avoidFerries: false,
-                vehicleInfo: { emissionType: 'GASOLINE' }
+                vehicleInfo: { emissionType: "GASOLINE" }
             },
-            languageCode: 'en-US',
-            units: 'METRIC'
+            languageCode: "en-US",
+            units: "METRIC"
         };
 
         if (waypoints.length > 0) {
             requestBody.intermediates = waypoints.map(wp => this.buildWaypoint(wp));
         }
 
+        // 4️⃣ Викликаємо Google Routes API
         const response = await axios.post(GOOGLE_ROUTES_URL, requestBody, {
             headers: {
-                'Content-Type': 'application/json',
-                'X-Goog-Api-Key': GOOGLE_ROUTES_API_KEY,
-                'X-Goog-FieldMask':
-                    'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs,routes.travelAdvisory'
+                "Content-Type": "application/json",
+                "X-Goog-Api-Key": GOOGLE_ROUTES_API_KEY,
+                "X-Goog-FieldMask":
+                    "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs,routes.travelAdvisory"
             }
         });
 
-        console.log('✅ Google Routes API response received');
-        const parsed = this.parseRoutesResponse(response.data);
+        console.log("✅ Google Routes API response received");
 
-        for (const route of parsed) {
-            route.countries = await this.detectCountriesWithCache(origin, destination, route.polyline);
-        }
+        const parsedRoutes = this.parseRoutesResponse(response.data);
 
-        return parsed;
+        // 5️⃣ Зберігаємо в кеш
+        await GoogleRouteCache.updateOne(
+            { hash },
+            { data: parsedRoutes, updatedAt: new Date() },
+            { upsert: true }
+        );
+
+        console.log("💾 Saved Google route data to cache");
+
+        return parsedRoutes;
     }
 
     parseRoutesResponse(data) {
-        if (!data.routes || data.routes.length === 0) throw new Error('No routes found');
+        if (!data.routes || data.routes.length === 0)
+            throw new Error("No routes found");
+
         return data.routes.map((route, index) => ({
             routeIndex: index,
             distance: (route.distanceMeters || 0) / 1000,
             duration: this.parseDuration(route.duration),
-            polyline: route.polyline?.encodedPolyline || '',
+            polyline: route.polyline?.encodedPolyline || "",
             legs: route.legs || [],
             tollInfo: route.travelAdvisory?.tollInfo || {}
         }));
     }
 
     parseDuration(durationString) {
-        return durationString ? parseInt(durationString.replace('s', '')) : 0;
+        return durationString ? parseInt(durationString.replace("s", "")) : 0;
     }
 
     buildWaypoint(value) {
         if (!value) return null;
         if (value.lat !== undefined && value.lon !== undefined)
             return { location: { latLng: { latitude: value.lat, longitude: value.lon } } };
-        if (typeof value === 'string') return { address: value };
+        if (typeof value === "string") return { address: value };
         return { address: String(value) };
-    }
-
-    // 🧠 NEW: caching mechanism
-    async detectCountriesWithCache(origin, destination, encodedPolyline) {
-        const originKey = `${origin.lat},${origin.lon}`;
-        const destinationKey = `${destination.lat},${destination.lon}`;
-
-        // 1️⃣ check cache
-        const cached = await RouteCache.findOne({ origin: originKey, destination: destinationKey });
-        if (cached) {
-            console.log(`✅ Loaded countries from cache: ${cached.countries.join(', ')}`);
-            return cached.countries;
-        }
-
-        // 2️⃣ no cache → detect via API
-        const countries = await this.detectCountriesFromPolyline(encodedPolyline);
-
-        // 3️⃣ save to cache
-        if (countries.length > 0) {
-            await RouteCache.create({
-                origin: originKey,
-                destination: destinationKey,
-                countries
-            });
-            console.log(`💾 Saved countries to cache: ${countries.join(', ')}`);
-        }
-
-        return countries;
-    }
-
-    async detectCountriesFromPolyline(encodedPolyline) {
-        if (!encodedPolyline) return [];
-
-        const points = polyline.decode(encodedPolyline);
-        if (points.length === 0) return [];
-
-        const sampled = points.filter((_, i) => i % 200 === 0);
-        const countries = new Set();
-
-        for (const [lat, lon] of sampled) {
-            try {
-                const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lon}&key=${process.env.GOOGLE_ROUTES_API_KEY}&result_type=country`;
-                const res = await axios.get(url);
-                const country = res.data?.results?.[0]?.address_components?.[0]?.short_name;
-                if (country) countries.add(country);
-            } catch (err) {
-                console.warn('Reverse geocode failed for point:', lat, lon);
-            }
-        }
-
-        return Array.from(countries);
     }
 }
 
