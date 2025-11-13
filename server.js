@@ -13,6 +13,8 @@ const healthRouter = require('./src/routes/health');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const fuelRoutes = require('./src/routes/fuelPrices');
+
 
 // Connect to MongoDB
 connectDB();
@@ -46,6 +48,7 @@ app.use('/api/health', healthRouter);
 app.use('/api/routes', routesRouter);
 app.use('/api/vehicles', vehiclesRouter);
 app.use('/api/fuel-prices', fuelPricesRouter);
+app.use('/api/fuel', fuelRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
