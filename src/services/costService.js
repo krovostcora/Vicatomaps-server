@@ -23,11 +23,12 @@ class CostService {
                 consumption: vehicle.consumption
             });
 
-            // Ensure route has country list
-            if (!route.countries || route.countries.length === 0) {
-                console.warn('No countries detected in route, using default [DE]');
-                route.countries = ['DE'];
+// FIX: do not override if countries=null (routeService will detect properly)
+            if (!Array.isArray(route.countries) || route.countries.length === 0) {
+                console.warn("⚠️ No countries detected in route after detection or cache. Skipping fuel calculation safely.");
+                return { fuelCost: { total: 0, breakdown: [], totalLiters: 0 }, tollCost: { total: 0 }, totalCost: 0 };
             }
+
 
             console.log(`Route: ${route.distance} km through ${route.countries.join(', ')}`);
 
