@@ -1,101 +1,79 @@
-// src/services/fuelPriceService.js
-const axios = require('axios');
-const cheerio = require('cheerio');
-const FuelPrice = require('../models/FuelPrice');
+/**
+ * Fuel Price Scraper (tolls.eu)
+ * Fast, stable, Render-Free compatible (axios + cheerio)
+ */
 
-const countryMap = {
-    DE: 'DEU', PL: 'POL', BE: 'BEL', FR: 'FRA', ES: 'ESP', PT: 'PRT',
-    IT: 'ITA', NL: 'NLD', AT: 'AUT', CZ: 'CZE', SK: 'SVK', HU: 'HUN',
-    CH: 'CHE', SI: 'SVN', HR: 'HRV', RO: 'ROU', BG: 'BGR', GR: 'GRC',
-    UA: 'UKR', GB: 'GBR', IE: 'IRL', DK: 'DNK', SE: 'SWE', NO: 'NOR',
-    FI: 'FIN', LT: 'LTU', LV: 'LVA', EE: 'EST'
-};
-
-const fuelTypeMap = {
-    petrol: 'gasoline',
-    gasoline: 'gasoline',
-    diesel: 'diesel',
-    lpg: 'lpg'
-};
-
-function mapTo3Letter(code2) {
-    return countryMap[code2.toUpperCase()] || code2.toUpperCase();
-}
-
-function normalizeFuelType(type) {
-    const key = type.toLowerCase();
-    return fuelTypeMap[key] || 'gasoline';
-}
-
-async function getFuelPrice(countryCode, fuelType) {
-    const code = countryCode.length === 2 ? mapTo3Letter(countryCode) : countryCode.toUpperCase();
-    const normalizedType = normalizeFuelType(fuelType);
-    const fuel = await FuelPrice.findOne({ countryCode: code });
-    if (!fuel) return null;
-
-    return fuel[normalizedType] ?? null;
-}
-
-async function getFuelPrices(countries, fuelType) {
-    const mappedCodes = countries.map(c =>
-        c.length === 2 ? mapTo3Letter(c) : c.toUpperCase()
-    );
-
-    const normalizedType = normalizeFuelType(fuelType);
-    const fuels = await FuelPrice.find({ countryCode: { $in: mappedCodes } });
-
-    return fuels.map(f => ({
-        countryCode: f.countryCode,
-        country: f.country,
-        price: f[normalizedType] ?? null
-    }));
-}
+const axios = require("axios");
+const cheerio = require("cheerio");
+const FuelPrice = require("../models/FuelPrice");
 
 /**
- * 🌍 Scrape latest EU fuel prices from European Commission
+ * Scrape fuel prices from https://www.tolls.eu/fuel-prices
+ * Returns parsed array and saves into MongoDB
  */
 async function scrapeFuelPrices() {
-    console.log('⛽ Fetching latest EU fuel prices...');
+    console.log("⛽ Starting fuel price scrape from tolls.eu ...");
+
     try {
-        const url = 'https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en';
-        const { data } = await axios.get(url);
-        const $ = cheerio.load(data);
-
-        const prices = [];
-        $('table tbody tr').each((_, row) => {
-            const cols = $(row).find('td');
-            const country = $(cols[0]).text().trim();
-            const gasoline = parseFloat($(cols[1]).text().replace(',', '.'));
-            const diesel = parseFloat($(cols[2]).text().replace(',', '.'));
-            const lpg = parseFloat($(cols[3]).text().replace(',', '.'));
-
-            if (country && !isNaN(gasoline)) {
-                const code2 = Object.keys(countryMap).find(
-                    key => countryMap[key] && country.toLowerCase().includes(key.toLowerCase())
-                );
-                prices.push({
-                    country,
-                    countryCode: code2 ? mapTo3Letter(code2) : country.slice(0, 3).toUpperCase(),
-                    gasoline,
-                    diesel,
-                    lpg
-                });
-            }
+        // Fetch HTML from the website
+        const response = await axios.get("https://www.tolls.eu/fuel-prices", {
+            headers: {
+                "User-Agent":
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+            },
+            timeout: 15000,
         });
 
-        if (prices.length > 0) {
-            await FuelPrice.deleteMany({});
-            await FuelPrice.insertMany(prices);
-            console.log(`✅ Updated ${prices.length} fuel prices`);
-        } else {
-            console.warn('⚠️ No prices parsed!');
+        const $ = cheerio.load(response.data);
+
+        console.log("🔍 Parsing fuel price table...");
+        const rows = $(".table.fuel-prices .tr").not(".heading");
+
+        const extractEuro = (text) => {
+            if (!text) return null;
+            const cleaned = text.replace(/[^\d.,]/g, "").replace(",", ".");
+            return cleaned ? parseFloat(cleaned) : null;
+        };
+
+        const parsed = [];
+
+        rows.each((_, row) => {
+            const cells = $(row).find(".td");
+
+            const countryCode = cells.eq(0).find("input").val()?.trim() || "";
+            const country = cells.eq(1).text().trim();
+
+            if (!country) return;
+
+            parsed.push({
+                countryCode,
+                country,
+                gasoline: extractEuro(cells.eq(2).text()),
+                diesel: extractEuro(cells.eq(3).text()),
+                lpg: extractEuro(cells.eq(4).text()),
+            });
+        });
+
+        console.log(`✅ Parsed ${parsed.length} countries`);
+
+        if (parsed.length === 0) {
+            throw new Error("No fuel prices parsed — table structure may have changed.");
         }
 
-        return prices;
+        // Save into DB
+        console.log("🗑 Clearing old prices...");
+        await FuelPrice.deleteMany({});
+
+        console.log("💾 Inserting new prices...");
+        await FuelPrice.insertMany(parsed);
+
+        console.log("🎉 Fuel prices saved successfully!");
+        return parsed;
+
     } catch (err) {
-        console.error('❌ Failed to scrape fuel prices:', err.message);
+        console.error("❌ Fuel price scraping failed:", err.message);
         throw err;
     }
 }
 
-module.exports = { getFuelPrice, getFuelPrices, scrapeFuelPrices };
+module.exports = { scrapeFuelPrices };
