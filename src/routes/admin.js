@@ -4,6 +4,7 @@ const router = express.Router();
 const puppeteer = require('puppeteer');
 const mongoose = require('mongoose');
 const FuelPrice = require('../models/FuelPrice');
+const path = require('path');
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -15,13 +16,19 @@ async function scrapeFuelPrices() {
 
     let browser;
     try {
+
+        const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH ||
+            puppeteer.executablePath();
+
         browser = await puppeteer.launch({
             headless: true,
+            executablePath,
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
-                '--disable-gpu'
+                '--disable-gpu',
+                '--disable-software-rasterizer'
             ]
         });
 

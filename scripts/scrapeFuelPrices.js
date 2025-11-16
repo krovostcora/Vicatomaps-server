@@ -7,21 +7,9 @@
  */
 
 require('dotenv').config();
-const puppeteer = require('puppeteer-core');
-const { install, Browser } = require('@puppeteer/browsers');
-const path = require('path');
+const puppeteer = require('puppeteer');
 const mongoose = require('mongoose');
 const FuelPrice = require('../src/models/FuelPrice');
-
-const chromiumPath = path.join('/tmp', 'chromium');
-
-await install({
-    browser: Browser.CHROMIUM,
-    buildId: 'latest',
-    cacheDir: '/tmp',
-    baseUrl: 'https://storage.googleapis.com/chromium-browser-snapshots'
-});
-
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -29,10 +17,15 @@ async function scrapeFuelPrices() {
     console.log('Connecting to MongoDB...');
     await mongoose.connect(process.env.MONGODB_URI);
 
-    browser = await puppeteer.launch({
+    const browser = await puppeteer.launch({
         headless: true,
-        executablePath: `${chromiumPath}/chrome-linux/chrome`,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--disable-software-rasterizer'
+        ]
     });
 
     const page = await browser.newPage();
