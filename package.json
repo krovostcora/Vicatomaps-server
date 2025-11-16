@@ -12,7 +12,7 @@
     "clear-cache": "node scripts/clearCache.js",
     "test-google": "node scripts/testGoogleAPI.js",
     "scrape:fuel": "node scripts/scrapeFuelPrices.js",
-    "postinstall": "node node_modules/puppeteer/install.js"
+    "postinstall": "npx puppeteer browsers install chrome"
   },
   "dependencies": {
     "@mapbox/polyline": "^1.2.1",
