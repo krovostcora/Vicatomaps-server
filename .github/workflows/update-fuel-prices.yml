@@ -1,0 +1,47 @@
+name: Update Fuel Prices Weekly
+
+# Коли запускати
+on:
+  schedule:
+    # Щонеділі о 12:06 UTC
+    - cron: '6 12 * * 0'
+  # Дозволяє запустити вручну з вкладки Actions
+  workflow_dispatch:
+
+# Що робити
+jobs:
+  update-fuel-prices:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Крок 1: Wake-up Render server
+      - name: 🔥 Wake up Render server
+        run: |
+          echo "Waking up server..."
+          curl -X GET https://vicatomaps-server.onrender.com/api/health || true
+          echo "Waiting 60 seconds for server to fully start..."
+          sleep 60
+
+      # Крок 2: Trigger fuel price update
+      - name: ⛽ Update fuel prices
+        run: |
+          echo "Triggering fuel price update..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X GET https://vicatomaps-server.onrender.com/api/admin/fuel/update)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+          
+          echo "Response: $BODY"
+          echo "HTTP Status: $HTTP_CODE"
+          
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "❌ Update failed with status $HTTP_CODE"
+            exit 1
+          fi
+          
+          echo "✅ Fuel prices updated successfully!"
+
+      # Крок 3: Verify update
+      - name: ✅ Verify update status
+        run: |
+          echo "Checking fuel price status..."
+          curl -X GET https://vicatomaps-server.onrender.com/api/admin/fuel/status
