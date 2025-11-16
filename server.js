@@ -16,6 +16,7 @@ const PORT = process.env.PORT || 3000;
 const adminRoutes = require('./src/routes/admin');
 
 
+
 // Connect to MongoDB
 connectDB();
 
@@ -49,6 +50,7 @@ app.use('/api/routes', routesRouter);
 app.use('/api/vehicles', vehiclesRouter);
 app.use('/api/fuel-prices', fuelPricesRouter);
 app.use('/api/fuel', adminRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
