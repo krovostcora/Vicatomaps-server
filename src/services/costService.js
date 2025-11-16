@@ -25,7 +25,7 @@ class CostService {
 
 // FIX: do not override if countries=null (routeService will detect properly)
             if (!Array.isArray(route.countries) || route.countries.length === 0) {
-                console.warn("⚠️ No countries detected in route after detection or cache. Skipping fuel calculation safely.");
+                console.warn("âš ï¸ No countries detected in route after detection or cache. Skipping fuel calculation safely.");
                 return { fuelCost: { total: 0, breakdown: [], totalLiters: 0 }, tollCost: { total: 0 }, totalCost: 0 };
             }
 
@@ -39,7 +39,7 @@ class CostService {
             const totalCost = (fuelCost.total || 0) + (tollCost.total || 0);
 
             console.log(
-                `Final costs: Fuel=€${fuelCost.total}, Tolls=€${tollCost.total}, Total=€${totalCost}`
+                `Final costs: Fuel=â‚¬${fuelCost.total}, Tolls=â‚¬${tollCost.total}, Total=â‚¬${totalCost}`
             );
 
             return {
@@ -122,7 +122,7 @@ class CostService {
             }
 
             console.log(
-                `Total fuel cost: €${totalCost.toFixed(2)} (${totalLitersUsed.toFixed(
+                `Total fuel cost: â‚¬${totalCost.toFixed(2)} (${totalLitersUsed.toFixed(
                     2
                 )} L across ${countries.length} countries)`
             );

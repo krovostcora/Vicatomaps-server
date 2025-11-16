@@ -1,79 +1,75 @@
 /**
- * Fuel Price Scraper (axios + cheerio, fully Render Free compatible)
- * Parses fuel prices from https://www.tolls.eu/fuel-prices
- * Saves into MongoDB (FuelPrice model)
+ * Fuel Price Scraper for tolls.eu
+ * Description:
+ *  - Extracts only â‚¬ prices per country
+ *  - Removes local currency fragments
+ *  - Saves data into MongoDB
  */
 
-require("dotenv").config();
-const axios = require("axios");
-const cheerio = require("cheerio");
-const mongoose = require("mongoose");
-const FuelPrice = require("../src/models/FuelPrice");
+require('dotenv').config();
+const puppeteer = require('puppeteer');
+const mongoose = require('mongoose');
+const FuelPrice = require('../src/models/FuelPrice');
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function scrapeFuelPrices() {
-    console.log("⛽ Connecting to MongoDB...");
+    console.log('Connecting to MongoDB...');
     await mongoose.connect(process.env.MONGODB_URI);
 
-    try {
-        console.log("🌍 Fetching HTML from tolls.eu...");
-        const response = await axios.get("https://www.tolls.eu/fuel-prices", {
-            headers: {
-                "User-Agent":
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
-            },
-            timeout: 15000,
-        });
+    const browser = await puppeteer.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.setExtraHTTPHeaders({
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36'
+    });
 
-        const $ = cheerio.load(response.data);
 
-        console.log("🔍 Parsing table rows...");
-        const rows = $(".table.fuel-prices .tr").not(".heading");
+    console.log('Opening tolls.eu/fuel-prices...');
+    await page.goto('https://www.tolls.eu/fuel-prices', { waitUntil: 'networkidle2' });
+    await page.waitForSelector('.table.fuel-prices');
+    await sleep(1500);
+
+    const data = await page.evaluate(() => {
+        const rows = Array.from(document.querySelectorAll('.table.fuel-prices .tr'))
+            .filter(row => !row.classList.contains('heading'));
 
         const extractEuro = (text) => {
-            if (!text) return null;
-            const num = text.replace(/[^\d.,]/g, "").replace(",", ".");
-            return num ? parseFloat(num) : null;
+            const match = text && text.match(/â‚¬\s*([\d.,]+)/);
+            return match ? parseFloat(match[1].replace(',', '.')) : null;
         };
 
-        const parsed = [];
+        return rows.map(row => {
+            const cells = Array.from(row.querySelectorAll('.td'));
+            return {
+                countryCode: cells[0]?.querySelector('input')?.value || '',
+                country: cells[1]?.innerText.trim(),
+                gasoline: extractEuro(cells[2]?.innerText),
+                diesel: extractEuro(cells[3]?.innerText),
+                lpg: extractEuro(cells[4]?.innerText),
+            };
+        }).filter(item => item.country);
+    });
 
-        rows.each((_, row) => {
-            const cells = $(row).find(".td");
+    console.log(`Scraped ${data.length} countries`);
 
-            const countryCode = cells.eq(0).find("input").val() || "";
-            const country = cells.eq(1).text().trim();
+    await FuelPrice.deleteMany({});
+    await FuelPrice.insertMany(data);
+    console.log('Data saved to MongoDB');
 
-            if (!country) return;
-
-            parsed.push({
-                countryCode,
-                country,
-                gasoline: extractEuro(cells.eq(2).text()),
-                diesel: extractEuro(cells.eq(3).text()),
-                lpg: extractEuro(cells.eq(4).text()),
-            });
-        });
-
-        console.log(`✅ Parsed ${parsed.length} countries`);
-
-        if (parsed.length === 0) {
-            throw new Error("No prices parsed — structure may have changed");
-        }
-
-        console.log("🗑 Clearing old fuel prices...");
-        await FuelPrice.deleteMany({});
-
-        console.log("💾 Inserting new fuel prices...");
-        await FuelPrice.insertMany(parsed);
-
-        console.log("🎉 Fuel prices saved successfully!");
-
+    // Graceful disconnect
+    try {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await mongoose.disconnect();
+        console.log('MongoDB disconnected cleanly');
     } catch (err) {
-        console.error("❌ Scraper error:", err.message);
-    } finally {
-        await mongoose.disconnect().catch(() => {});
-        console.log("🔌 MongoDB disconnected");
+        console.warn('Warning while closing MongoDB:', err.message);
     }
+
+    await browser.close();
+    console.log('Task complete');
 }
 
-scrapeFuelPrices();
+scrapeFuelPrices().catch(err => {
+    console.error('Scraper failed:', err);
+    mongoose.disconnect();
+});
