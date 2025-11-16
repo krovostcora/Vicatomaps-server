@@ -11,7 +11,8 @@
     "debug-db": "node scripts/debugDatabase.js",
     "clear-cache": "node scripts/clearCache.js",
     "test-google": "node scripts/testGoogleAPI.js",
-    "scrape:fuel": "node scripts/scrapeFuelPrices.js"
+    "scrape:fuel": "node scripts/scrapeFuelPrices.js",
+    "postinstall": "puppeteer browsers install chrome"
   },
   "dependencies": {
     "@mapbox/polyline": "^1.2.1",
@@ -24,8 +25,7 @@
     "express-rate-limit": "^7.1.5",
     "helmet": "^7.1.0",
     "mongoose": "^8.0.3",
-    "puppeteer": "^24.30.0",
-    "puppeteer-core": "^24.30.0"
+    "puppeteer": "^24.30.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",
