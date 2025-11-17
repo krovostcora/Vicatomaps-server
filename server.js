@@ -14,6 +14,7 @@ const healthRouter = require('./src/routes/health');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const adminRoutes = require('./src/routes/admin');
+const tripsRouter = require('./src/routes/trips');
 
 
 
@@ -51,6 +52,7 @@ app.use('/api/vehicles', vehiclesRouter);
 app.use('/api/fuel-prices', fuelPricesRouter);
 app.use('/api/fuel', adminRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/trips', tripsRouter);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

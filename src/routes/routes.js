@@ -68,6 +68,30 @@ router.post('/calculate', async (req, res, next) => {
             return a.duration - b.duration;
         });
 
+        // ========== AUTO SAVE TRIP ==========
+        try {
+            const best = sortedRoutes[0];
+            const costs = best.costs;
+
+            await UserTrip.create({
+                origin: `${origin.lat},${origin.lon}`,
+                destination: `${destination.lat},${destination.lon}`,
+                waypoints: waypoints.map(w => `${w.lat},${w.lon}`),
+                vehicle: vehicleId,
+                totalCost: costs.totalCost,
+                totalDistance: best.distance,
+                fuelCost: costs.fuelCost.total,
+                tollCost: costs.tollCost.total,
+                duration: best.duration,
+                routeData: best
+            });
+
+            console.log("💾 Trip saved successfully");
+        } catch (err) {
+            console.error("⚠️ Trip saving failed:", err.message);
+        }
+
+
         res.json({
             routes: sortedRoutes,
             optimizedFor: optimizeFor,
@@ -78,6 +102,8 @@ router.post('/calculate', async (req, res, next) => {
         console.error('Route calculation error:', error.message);
         next(error);
     }
+
+
 });
 
 /**
