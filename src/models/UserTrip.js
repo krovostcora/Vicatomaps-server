@@ -7,16 +7,19 @@ const userTripSchema = new mongoose.Schema({
         ref: 'User',
         index: true
     },
-    origin: {
-        type: String,
-        required: true,
-        trim: true
+    origin: { type: String, required: true },
+    destination: { type: String, required: true },
+
+    originCoords: {
+        lat: Number,
+        lon: Number
     },
-    destination: {
-        type: String,
-        required: true,
-        trim: true
+
+    destinationCoords: {
+        lat: Number,
+        lon: Number
     },
+    
     waypoints: [{
         type: String,
         trim: true
