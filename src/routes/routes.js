@@ -1,139 +1,285 @@
+// src/routes/routes.js
 const express = require('express');
 const router = express.Router();
+const { optionalAuth, authenticate } = require('../middleware/authenticate');
 const routeService = require('../services/routeService');
 const costService = require('../services/costService');
 const UserTrip = require('../models/UserTrip');
 
 /**
  * POST /api/routes/calculate
- * Body:
- * {
- *   "origin": { "lat": 50.4501, "lon": 30.5234, "name": "Kyiv, Ukraine" },
- *   "destination": { "lat": 48.8566, "lon": 2.3522, "name": "Paris, France" },
- *   "waypoints": [{ "lat": 52.52, "lon": 13.405, "name": "Berlin, Germany" }],
- *   "vehicleId": "abc123",
- *   "optimizeFor": "cost"
+ * Розрахунок маршруту та вартості
+ * Працює як для залогінених так і для гостей
+ *
+ * Body: {
+ *   origin: { lat, lon },
+ *   destination: { lat, lon },
+ *   waypoints?: [{ lat, lon }],
+ *   vehicleId: string
  * }
  */
-router.post('/calculate', async (req, res, next) => {
+router.post('/calculate', optionalAuth, async (req, res) => {
     try {
-        const { origin, destination, waypoints = [], vehicleId, optimizeFor = 'cost' } = req.body;
-        
-        console.log('\n=== NEW ROUTE CALCULATION REQUEST ===');
-        console.log('Origin:', origin);
-        console.log('Destination:', destination);
+        const { origin, destination, waypoints, vehicleId } = req.body;
 
         // Validation
-        if (!origin || !destination) {
+        if (!origin || !destination || !vehicleId) {
             return res.status(400).json({
-                error: 'Origin and destination are required'
+                success: false,
+                error: 'Missing required fields: origin, destination, vehicleId'
             });
         }
 
-        if (!vehicleId) {
-            return res.status(400).json({
-                error: 'Vehicle ID is required'
-            });
-        }
-
-        // Get route alternatives from Google Routes API
-        const routes = await routeService.getRoutes({
+        // Розрахувати маршрут та вартість
+        const result = await costService.calculateTripCost(
             origin,
             destination,
-            waypoints,
-            alternatives: true
-        });
-
-        console.log(`Received ${routes.length} route(s) from Google`);
-
-        // Calculate costs for each route
-        const routesWithCosts = await Promise.all(
-            routes.map(async (route) => {
-                const costs = await costService.calculateRouteCost(route, vehicleId);
-                return {
-                    ...route,
-                    costs
-                };
-            })
+            vehicleId,
+            waypoints
         );
 
-        // Sort routes based on optimization preference
-        const sortedRoutes = routesWithCosts.sort((a, b) => {
-            if (optimizeFor === 'cost') {
-                return a.costs.totalCost - b.costs.totalCost;
+        // Якщо користувач залогінений - зберегти trip
+        if (req.user) {
+            try {
+                const trip = new UserTrip({
+                    userId: req.user._id,
+                    vehicleId: vehicleId,
+                    origin: result.route?.origin || 'Unknown',
+                    destination: result.route?.destination || 'Unknown',
+                    originCoords: {
+                        lat: origin.lat,
+                        lon: origin.lon
+                    },
+                    destinationCoords: {
+                        lat: destination.lat,
+                        lon: destination.lon
+                    },
+                    waypoints: waypoints || [],
+                    distance: result.route?.distance,
+                    duration: result.route?.duration,
+                    fuelCost: result.fuelCost,
+                    tollCost: result.tollCost,
+                    totalCost: result.totalCost,
+                    countries: result.countries
+                });
+
+                await trip.save();
+                result.tripId = trip._id;
+            } catch (saveError) {
+                console.error('Failed to save trip:', saveError);
+                // Не блокуємо відповідь якщо не вдалось зберегти
             }
-            return a.duration - b.duration;
-        });
-
-        // ========== AUTO SAVE TRIP ==========
-        try {
-            const best = sortedRoutes[0];
-            const costs = best.costs;
-
-            await UserTrip.create({
-                // Зберігаємо НАЗВИ для відображення
-                origin: origin.name || `${origin.lat},${origin.lon}`,
-                destination: destination.name || `${destination.lat},${destination.lon}`,
-                
-                // Координати окремо для майбутнього використання
-                originCoords: {
-                    lat: origin.lat,
-                    lon: origin.lon
-                },
-                destinationCoords: {
-                    lat: destination.lat,
-                    lon: destination.lon
-                },
-
-                waypoints: waypoints.map(w => w.name || `${w.lat},${w.lon}`),
-                vehicle: vehicleId,
-                totalCost: costs.totalCost,
-                totalDistance: best.distance,
-                fuelCost: costs.fuelCost.total,
-                tollCost: costs.tollCost.total,
-                duration: best.duration,
-                routeData: best
-            });
-
-            console.log("💾 Trip saved successfully");
-        } catch (err) {
-            console.error("⚠️ Trip saving failed:", err.message);
         }
 
         res.json({
-            routes: sortedRoutes,
-            optimizedFor: optimizeFor,
-            timestamp: new Date().toISOString()
+            success: true,
+            ...result,
+            savedToHistory: !!req.user
         });
 
     } catch (error) {
-        console.error('Route calculation error:', error.message);
+        console.error('Route calculation error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to calculate route',
+            details: error.message
+        });
+    }
+});
+
+/**
+ * GET /api/routes/history
+ * Отримати історію поїздок (тільки для залогінених)
+ */
+router.get('/history', authenticate, async (req, res) => {
+    try {
+        const { limit = 20, skip = 0 } = req.query;
+
+        const trips = await Trip.find({ userId: req.user._id })
+            .sort({ createdAt: -1 })
+            .limit(parseInt(limit))
+            .skip(parseInt(skip))
+            .populate('vehicleId', 'brand model fuelType');
+
+        const total = await Trip.countDocuments({ userId: req.user._id });
+
+        res.json({
+            success: true,
+            trips,
+            pagination: {
+                total,
+                limit: parseInt(limit),
+                skip: parseInt(skip),
+                hasMore: total > parseInt(skip) + parseInt(limit)
+            }
+        });
+
+    } catch (error) {
+        console.error('Get history error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get trip history'
+        });
+    }
+});
+
+/**
+ * GET /api/routes/history/:tripId
+ * Отримати деталі конкретної поїздки
+ */
+router.get('/history/:tripId', authenticate, async (req, res) => {
+    try {
+        const trip = await Trip.findOne({
+            _id: req.params.tripId,
+            userId: req.user._id
+        }).populate('vehicleId');
+
+        if (!trip) {
+            return res.status(404).json({
+                success: false,
+                error: 'Trip not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            trip
+        });
+
+    } catch (error) {
+        console.error('Get trip error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get trip details'
+        });
+    }
+});
+
+/**
+ * DELETE /api/routes/history/:tripId
+ * Видалити поїздку з історії
+ */
+router.delete('/history/:tripId', authenticate, async (req, res) => {
+    try {
+        const trip = await Trip.findOneAndDelete({
+            _id: req.params.tripId,
+            userId: req.user._id
+        });
+
+        if (!trip) {
+            return res.status(404).json({
+                success: false,
+                error: 'Trip not found'
+            });
+        }
+
+        // Видалити з user history
+        req.user.tripHistory = req.user.tripHistory.filter(
+            id => id.toString() !== req.params.tripId
+        );
+        await req.user.save();
+
+        res.json({
+            success: true,
+            message: 'Trip deleted successfully'
+        });
+
+    } catch (error) {
+        console.error('Delete trip error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to delete trip'
+        });
+    }
+});
+
+/**
+ * GET /api/routes/history
+ * Отримати історію поїздок користувача
+ */
+router.get('/history', authenticate, async (req, res, next) => {
+    try {
+        const { limit = 20, skip = 0 } = req.query;
+
+        const trips = await UserTrip.find({ userId: req.user._id })
+            .sort({ createdAt: -1 })
+            .limit(parseInt(limit))
+            .skip(parseInt(skip))
+            .populate('vehicle', 'brand model fuelType');
+
+        const total = await UserTrip.countDocuments({ userId: req.user._id });
+
+        res.json({
+            success: true,
+            trips,
+            pagination: {
+                total,
+                limit: parseInt(limit),
+                skip: parseInt(skip),
+                hasMore: total > parseInt(skip) + parseInt(limit)
+            }
+        });
+
+    } catch (error) {
+        console.error('Get history error:', error);
         next(error);
     }
 });
 
 /**
- * POST /api/routes/directions
- * Get detailed turn-by-turn directions for a specific route
+ * GET /api/routes/history/:tripId
+ * Отримати деталі конкретної поїздки
  */
-router.post('/directions', async (req, res, next) => {
+router.get('/history/:tripId', authenticate, async (req, res, next) => {
     try {
-        const { origin, destination, waypoints = [] } = req.body;
+        const trip = await UserTrip.findOne({
+            _id: req.params.tripId,
+            userId: req.user._id
+        }).populate('vehicle');
 
-        if (!origin || !destination) {
-            return res.status(400).json({
-                error: 'Origin and destination are required'
+        if (!trip) {
+            return res.status(404).json({
+                success: false,
+                error: 'Trip not found'
             });
         }
 
-        const directions = await routeService.getDirections({
-            origin,
-            destination,
-            waypoints
+        res.json({
+            success: true,
+            trip
         });
 
-        res.json(directions);
     } catch (error) {
+        console.error('Get trip error:', error);
+        next(error);
+    }
+});
+
+/**
+ * DELETE /api/routes/history/:tripId
+ * Видалити поїздку з історії
+ */
+router.delete('/history/:tripId', authenticate, async (req, res, next) => {
+    try {
+        const trip = await UserTrip.findOneAndDelete({
+            _id: req.params.tripId,
+            userId: req.user._id
+        });
+
+        if (!trip) {
+            return res.status(404).json({
+                success: false,
+                error: 'Trip not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Trip deleted successfully'
+        });
+
+    } catch (error) {
+        console.error('Delete trip error:', error);
         next(error);
     }
 });
