@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const routeService = require('../services/routeService');
 const costService = require('../services/costService');
+const UserTrip = require('../models/UserTrip');
 
 /**
  * POST /api/routes/calculate
