@@ -1,4 +1,3 @@
-// routes/routes.js
 const express = require('express');
 const router = express.Router();
 const routeService = require('../services/routeService');
@@ -7,25 +6,22 @@ const UserTrip = require('../models/UserTrip');
 
 /**
  * POST /api/routes/calculate
- * Calculate optimal routes with cost breakdown
- *
  * Body:
  * {
- *   "origin": "Berlin, Germany",
- *   "destination": "Paris, France",
- *   "waypoints": ["Prague, Czech Republic"], // optional
- *   "vehicleId": 1,
- *   "optimizeFor": "cost" // or "time"
+ *   "origin": { "lat": 50.4501, "lon": 30.5234, "name": "Kyiv, Ukraine" },
+ *   "destination": { "lat": 48.8566, "lon": 2.3522, "name": "Paris, France" },
+ *   "waypoints": [{ "lat": 52.52, "lon": 13.405, "name": "Berlin, Germany" }],
+ *   "vehicleId": "abc123",
+ *   "optimizeFor": "cost"
  * }
  */
 router.post('/calculate', async (req, res, next) => {
     try {
         const { origin, destination, waypoints = [], vehicleId, optimizeFor = 'cost' } = req.body;
-
+        
         console.log('\n=== NEW ROUTE CALCULATION REQUEST ===');
         console.log('Origin:', origin);
         console.log('Destination:', destination);
-        console.log('Waypoints:', waypoints);
 
         // Validation
         if (!origin || !destination) {
@@ -75,9 +71,21 @@ router.post('/calculate', async (req, res, next) => {
             const costs = best.costs;
 
             await UserTrip.create({
-                origin: `${origin.lat},${origin.lon}`,
-                destination: `${destination.lat},${destination.lon}`,
-                waypoints: waypoints.map(w => `${w.lat},${w.lon}`),
+                // Зберігаємо НАЗВИ для відображення
+                origin: origin.name || `${origin.lat},${origin.lon}`,
+                destination: destination.name || `${destination.lat},${destination.lon}`,
+                
+                // Координати окремо для майбутнього використання
+                originCoords: {
+                    lat: origin.lat,
+                    lon: origin.lon
+                },
+                destinationCoords: {
+                    lat: destination.lat,
+                    lon: destination.lon
+                },
+
+                waypoints: waypoints.map(w => w.name || `${w.lat},${w.lon}`),
                 vehicle: vehicleId,
                 totalCost: costs.totalCost,
                 totalDistance: best.distance,
@@ -92,7 +100,6 @@ router.post('/calculate', async (req, res, next) => {
             console.error("⚠️ Trip saving failed:", err.message);
         }
 
-
         res.json({
             routes: sortedRoutes,
             optimizedFor: optimizeFor,
@@ -103,8 +110,6 @@ router.post('/calculate', async (req, res, next) => {
         console.error('Route calculation error:', error.message);
         next(error);
     }
-
-
 });
 
 /**
@@ -128,7 +133,6 @@ router.post('/directions', async (req, res, next) => {
         });
 
         res.json(directions);
-
     } catch (error) {
         next(error);
     }
