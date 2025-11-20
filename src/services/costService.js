@@ -68,6 +68,66 @@ class CostService {
     }
 
     /**
+     * Calculate trip cost - wrapper that gets routes and calculates costs
+     */
+    async calculateTripCost(origin, destination, vehicleId, waypoints = []) {
+        try {
+            console.log('=== Starting trip cost calculation ===');
+            console.log(`Origin: ${origin.lat}, ${origin.lon}`);
+            console.log(`Destination: ${destination.lat}, ${destination.lon}`);
+            console.log(`Vehicle ID: ${vehicleId}`);
+
+            // Get routes from routeService
+            const routeService = require('./routeService');
+            const routes = await routeService.getRoutes({
+                origin,
+                destination,
+                waypoints,
+                alternatives: true
+            });
+
+            if (!routes || routes.length === 0) {
+                throw new Error('No routes found');
+            }
+
+            console.log(`Found ${routes.length} route(s)`);
+
+            // Calculate cost for primary route (first one)
+            const primaryRoute = routes[0];
+            const costs = await this.calculateRouteCost(primaryRoute, vehicleId);
+
+            // Calculate costs for all alternative routes
+            const allRoutesWithCosts = await Promise.all(
+                routes.map(async (route) => {
+                    const routeCosts = await this.calculateRouteCost(route, vehicleId);
+                    return {
+                        routeIndex: route.routeIndex,
+                        distance: route.distance,
+                        duration: route.duration,
+                        polyline: route.polyline,
+                        countries: route.countries,
+                        ...routeCosts
+                    };
+                })
+            );
+
+            return {
+                route: {
+                    ...primaryRoute,
+                    origin: `${origin.lat},${origin.lon}`,
+                    destination: `${destination.lat},${destination.lon}`
+                },
+                routes: allRoutesWithCosts,
+                countries: primaryRoute.countries,
+                ...costs
+            };
+        } catch (error) {
+            console.error('Error in calculateTripCost:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Calculate fuel cost for the route based on distance per country.
      */
     async calculateFuelCost(route, vehicle) {

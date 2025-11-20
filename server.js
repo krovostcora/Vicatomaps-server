@@ -18,6 +18,11 @@ const adminRoutes = require('./src/routes/admin');
 const tripsRouter = require('./src/routes/trips');
 
 const app = express();
+// Trust proxy for Render/production
+if (process.env.NODE_ENV === 'production') {
+    app.set('trust proxy', 1);
+}
+
 const PORT = process.env.PORT || 3000;
 
 // Connect to MongoDB

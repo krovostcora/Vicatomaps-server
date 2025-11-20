@@ -89,113 +89,6 @@ router.post('/calculate', optionalAuth, async (req, res) => {
 
 /**
  * GET /api/routes/history
- * Отримати історію поїздок (тільки для залогінених)
- */
-router.get('/history', authenticate, async (req, res) => {
-    try {
-        const { limit = 20, skip = 0 } = req.query;
-
-        const trips = await Trip.find({ userId: req.user._id })
-            .sort({ createdAt: -1 })
-            .limit(parseInt(limit))
-            .skip(parseInt(skip))
-            .populate('vehicleId', 'brand model fuelType');
-
-        const total = await Trip.countDocuments({ userId: req.user._id });
-
-        res.json({
-            success: true,
-            trips,
-            pagination: {
-                total,
-                limit: parseInt(limit),
-                skip: parseInt(skip),
-                hasMore: total > parseInt(skip) + parseInt(limit)
-            }
-        });
-
-    } catch (error) {
-        console.error('Get history error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to get trip history'
-        });
-    }
-});
-
-/**
- * GET /api/routes/history/:tripId
- * Отримати деталі конкретної поїздки
- */
-router.get('/history/:tripId', authenticate, async (req, res) => {
-    try {
-        const trip = await Trip.findOne({
-            _id: req.params.tripId,
-            userId: req.user._id
-        }).populate('vehicleId');
-
-        if (!trip) {
-            return res.status(404).json({
-                success: false,
-                error: 'Trip not found'
-            });
-        }
-
-        res.json({
-            success: true,
-            trip
-        });
-
-    } catch (error) {
-        console.error('Get trip error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to get trip details'
-        });
-    }
-});
-
-/**
- * DELETE /api/routes/history/:tripId
- * Видалити поїздку з історії
- */
-router.delete('/history/:tripId', authenticate, async (req, res) => {
-    try {
-        const trip = await Trip.findOneAndDelete({
-            _id: req.params.tripId,
-            userId: req.user._id
-        });
-
-        if (!trip) {
-            return res.status(404).json({
-                success: false,
-                error: 'Trip not found'
-            });
-        }
-
-        // Видалити з user history
-        req.user.tripHistory = req.user.tripHistory.filter(
-            id => id.toString() !== req.params.tripId
-        );
-        await req.user.save();
-
-        res.json({
-            success: true,
-            message: 'Trip deleted successfully'
-        });
-
-    } catch (error) {
-        console.error('Delete trip error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to delete trip'
-        });
-    }
-});
-
-/**
- * GET /api/routes/history
- * Отримати історію поїздок користувача
  */
 router.get('/history', authenticate, async (req, res, next) => {
     try {
@@ -205,7 +98,7 @@ router.get('/history', authenticate, async (req, res, next) => {
             .sort({ createdAt: -1 })
             .limit(parseInt(limit))
             .skip(parseInt(skip))
-            .populate('vehicle', 'brand model fuelType');
+            .populate('vehicleId', 'name fuelType consumption');
 
         const total = await UserTrip.countDocuments({ userId: req.user._id });
 
@@ -228,14 +121,13 @@ router.get('/history', authenticate, async (req, res, next) => {
 
 /**
  * GET /api/routes/history/:tripId
- * Отримати деталі конкретної поїздки
  */
 router.get('/history/:tripId', authenticate, async (req, res, next) => {
     try {
         const trip = await UserTrip.findOne({
             _id: req.params.tripId,
             userId: req.user._id
-        }).populate('vehicle');
+        }).populate('vehicleId');
 
         if (!trip) {
             return res.status(404).json({
@@ -257,7 +149,6 @@ router.get('/history/:tripId', authenticate, async (req, res, next) => {
 
 /**
  * DELETE /api/routes/history/:tripId
- * Видалити поїздку з історії
  */
 router.delete('/history/:tripId', authenticate, async (req, res, next) => {
     try {
