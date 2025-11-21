@@ -84,6 +84,11 @@ const userTripSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.Mixed
     },
 
+    googleMapsUrl: {
+        type: String,
+        required: false
+    },
+
     // Для майбутніх фіч
     notes: {
         type: String
