@@ -4,7 +4,6 @@ const polyline = require("@mapbox/polyline");
 const crypto = require("crypto");
 
 const GoogleRouteCache = require("../models/GoogleRouteCache");
-const RouteCache = require("../models/RouteCache");
 
 const GOOGLE_ROUTES_API_KEY = process.env.GOOGLE_ROUTES_API_KEY;
 const GOOGLE_ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes";
@@ -21,16 +20,36 @@ class RouteService {
 
         const cacheKey = this.buildCacheHash(origin, destination, waypoints, alternatives);
 
-        // 1️⃣ Try loading Google result from cache
+        // 1) Try loading Google result from cache
         const cached = await GoogleRouteCache.findOne({ hash: cacheKey });
-        if (cached && Date.now() - cached.updatedAt.getTime() < CACHE_TTL) {
+
+        if (cached && cached.updatedAt && (Date.now() - cached.updatedAt.getTime() < CACHE_TTL)) {
             console.log("⚡ Using cached Google route data");
 
-            // BUT — enrich routes with countries (from RouteCache)
-            return await this.attachCountriesToRoutes(cached.data, origin, destination);
+            let routes = cached.data || [];
+
+            // Ensure countries are present on cached routes
+            const needsCountries =
+                !routes.length ||
+                !routes[0].countries ||
+                routes[0].countries.length === 0;
+
+            if (needsCountries) {
+                console.log("🌍 Countries missing in cached routes — detecting now...");
+                await this.detectCountriesForRoutes(routes);
+
+                // Update cache with countries
+                await GoogleRouteCache.updateOne(
+                    { hash: cacheKey },
+                    { data: routes, updatedAt: new Date() }
+                );
+                console.log("💾 Updated cached routes with countries");
+            }
+
+            return routes;
         }
 
-        // 2️⃣ Request fresh data from Google Routes API
+        // 2) Request fresh data from Google Routes API
         const requestBody = this.buildGoogleRequestBody(origin, destination, waypoints, alternatives);
 
         const response = await axios.post(GOOGLE_ROUTES_URL, requestBody, {
@@ -46,17 +65,17 @@ class RouteService {
 
         const parsedRoutes = this.parseRoutesResponse(response.data);
 
-        // 3️⃣ Detect countries for each route (uses caching internally)
-        await this.detectAndCacheCountries(parsedRoutes, origin, destination);
+        // 3) Detect countries for each route (no separate RouteCache)
+        await this.detectCountriesForRoutes(parsedRoutes);
 
-        // 4️⃣ Save fresh Google routes into cache
+        // 4) Save fresh Google routes (with countries) into cache
         await GoogleRouteCache.updateOne(
             { hash: cacheKey },
             { data: parsedRoutes, updatedAt: new Date() },
             { upsert: true }
         );
 
-        console.log("💾 Saved Google route data to cache");
+        console.log("💾 Saved Google route data with countries to cache");
 
         return parsedRoutes;
     }
@@ -81,7 +100,7 @@ class RouteService {
             units: "METRIC"
         };
 
-        if (waypoints.length > 0) {
+        if (waypoints && waypoints.length > 0) {
             body.intermediates = waypoints.map(wp => this.buildWaypoint(wp));
         }
 
@@ -90,14 +109,16 @@ class RouteService {
 
     buildWaypoint(value) {
         if (!value) return null;
-        if (value.lat !== undefined && value.lon !== undefined)
+        if (value.lat !== undefined && value.lon !== undefined) {
             return { location: { latLng: { latitude: value.lat, longitude: value.lon } } };
+        }
         return { address: String(value) };
     }
 
     parseRoutesResponse(data) {
-        if (!data.routes || data.routes.length === 0)
+        if (!data.routes || data.routes.length === 0) {
             throw new Error("No routes found");
+        }
 
         return data.routes.map((route, index) => ({
             routeIndex: index,
@@ -115,54 +136,33 @@ class RouteService {
     }
 
     // ----------------------------------------------------
-    // COUNTRY DETECTION & CACHING
+    // COUNTRY DETECTION (NO SEPARATE CACHE)
     // ----------------------------------------------------
 
-    async detectAndCacheCountries(routes, origin, destination) {
-        const o = `${origin.lat},${origin.lon}`;
-        const d = `${destination.lat},${destination.lon}`;
+    /**
+     * Detect countries for given routes and write them into each route.
+     * Uses only first route polyline (all routes are geographically similar).
+     */
+    async detectCountriesForRoutes(routes) {
+        if (!routes || routes.length === 0) return [];
 
-        // Try to load from RouteCache
-        const cached = await RouteCache.findOne({ origin: o, destination: d });
-        if (cached && cached.countries?.length > 0) {
-            console.log(`⚡ Loaded countries from cache: ${cached.countries.join(", ")}`);
-            routes.forEach(r => r.countries = cached.countries);
-            return;
+        const poly = routes[0]?.polyline || "";
+        if (!poly) {
+            console.warn("No polyline available for country detection");
+            return [];
         }
 
         console.log("🌍 Detecting countries from polyline...");
 
-        // Detect countries using first route's polyline (all routes are similar geographically)
-        const poly = routes[0]?.polyline || "";
         const countries = await this.detectCountriesFromPolyline(poly);
 
         console.log(`🌍 Countries detected: ${countries.join(", ")}`);
 
-        // Save countries into database
-        await RouteCache.updateOne(
-            { origin: o, destination: d },
-            { origin: o, destination: d, countries, updatedAt: new Date() },
-            { upsert: true }
-        );
+        routes.forEach(r => {
+            r.countries = countries;
+        });
 
-        routes.forEach(r => r.countries = countries);
-    }
-
-    async attachCountriesToRoutes(routes, origin, destination) {
-        const o = `${origin.lat},${origin.lon}`;
-        const d = `${destination.lat},${destination.lon}`;
-
-        const cached = await RouteCache.findOne({ origin: o, destination: d });
-
-        if (cached && cached.countries?.length > 0) {
-            console.log(`⚡ Loaded countries from cache: ${cached.countries.join(", ")}`);
-            routes.forEach(r => (r.countries = cached.countries));
-        } else {
-            console.log("⚠ Countries not cached — detecting now...");
-            await this.detectAndCacheCountries(routes, origin, destination);
-        }
-
-        return routes;
+        return countries;
     }
 
     async detectCountriesFromPolyline(encodedPolyline) {
@@ -177,11 +177,20 @@ class RouteService {
 
         for (const [lat, lon] of sampled) {
             try {
-                const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lon}&key=${GOOGLE_ROUTES_API_KEY}&result_type=country`;
+                const url =
+                    `https://maps.googleapis.com/maps/api/geocode/json` +
+                    `?latlng=${lat},${lon}` +
+                    `&key=${GOOGLE_ROUTES_API_KEY}` +
+                    `&result_type=country`;
+
                 const res = await axios.get(url);
 
-                const country = res?.data?.results?.[0]?.address_components?.[0]?.short_name;
-                if (country) countries.add(country);
+                const country =
+                    res?.data?.results?.[0]?.address_components?.[0]?.short_name;
+
+                if (country) {
+                    countries.add(country);
+                }
             } catch (err) {
                 console.warn("Reverse geocode failed:", lat, lon);
             }
@@ -202,4 +211,3 @@ class RouteService {
 }
 
 module.exports = new RouteService();
-// TODO: Fix Route Countries Cache Inconsistency --
