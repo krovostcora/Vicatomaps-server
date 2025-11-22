@@ -13,16 +13,20 @@ class GoogleMapsParser {
         try {
             console.log('Parsing Google Maps URL:', url);
 
+            // Очистити URL від зайвих параметрів (g_st, g_ep тощо)
+            let cleanUrl = url.split('?')[0]; // Видалити все після ?
+            console.log('Cleaned URL:', cleanUrl);
+
             // Якщо це short URL - розгорнути його
-            let fullUrl = url;
-            if (url.includes('maps.app.goo.gl') || url.includes('goo.gl')) {
-                fullUrl = await this.expandShortUrl(url);
+            let fullUrl = cleanUrl;
+            if (cleanUrl.includes('maps.app.goo.gl') || cleanUrl.includes('goo.gl')) {
+                fullUrl = await this.expandShortUrl(cleanUrl);
                 console.log('Expanded URL:', fullUrl);
             }
 
             // Парсити повний URL
             const result = this.parseFullUrl(fullUrl);
-
+            
             if (!result.origin || !result.destination) {
                 throw new Error('Could not extract origin and destination from URL');
             }
@@ -105,7 +109,7 @@ class GoogleMapsParser {
             // Fallback: парсинг з pathname
             // Шукаємо /dir/ в URL
             const dirMatch = pathname.match(/\/dir\/([^/]+)(?:\/([^/?]+))?(?:\/([^/@?]+))?/);
-
+            
             if (!dirMatch) {
                 throw new Error('Invalid Google Maps directions URL format');
             }
@@ -155,7 +159,7 @@ class GoogleMapsParser {
             // Шукаємо координати в форматі !2d<lon>!2d<lat>
             const coordRegex = /!2d(-?\d+\.?\d*)!2d(-?\d+\.?\d*)/g;
             const matches = [...dataParam.matchAll(coordRegex)];
-
+            
             if (matches.length < 2) {
                 return null;
             }
@@ -202,10 +206,10 @@ class GoogleMapsParser {
     parsePoint(pointString) {
         // Видалити зайві пробіли та decode URL encoding
         const decoded = decodeURIComponent(pointString.trim());
-
+        
         // Спроба розпарсити як координати
         const coordMatch = decoded.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
-
+        
         if (coordMatch) {
             return {
                 lat: parseFloat(coordMatch[1]),
@@ -239,14 +243,14 @@ class GoogleMapsParser {
      */
     async geocodePlace(placeName) {
         const apiKey = process.env.GOOGLE_ROUTES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
-
+        
         if (!apiKey) {
             throw new Error('Google API key not configured (GOOGLE_ROUTES_API_KEY or GOOGLE_MAPS_API_KEY)');
         }
 
         try {
             console.log(`Geocoding place: ${placeName}`);
-
+            
             const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
                 params: {
                     address: placeName,
