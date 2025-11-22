@@ -81,6 +81,7 @@ class GoogleMapsParser {
      * Приклади форматів:
      * - /dir/54.6872,25.2797/54.8978,23.9094/
      * - /dir/Vilnius/Kaunas/
+     * - /?daddr=Kaunas&saddr=Vilnius (старий формат з мобільного)
      * - /dir/Ljubljana,+Slovenia/Lviv,+Ukraine/@47.9,13.9,6z/data=...
      */
     parseFullUrl(url) {
@@ -90,9 +91,15 @@ class GoogleMapsParser {
             const searchParams = urlObj.searchParams;
 
             console.log('Parsing pathname:', pathname);
-            console.log('Has data param:', searchParams.has('data') || pathname.includes('/data='));
+            console.log('Search params:', [...searchParams.entries()]);
 
-            // Спробуємо спочатку витягти координати з data параметру
+            // ФОРМАТ 1: Старий формат з query параметрами (?daddr=...&saddr=...)
+            if (searchParams.has('daddr') || searchParams.has('saddr')) {
+                console.log('Detected old query-based format');
+                return this.parseQueryBasedUrl(searchParams);
+            }
+
+            // ФОРМАТ 2: Data параметр (encoded route info)
             const dataMatch = url.match(/data=([^&]+)/);
             if (dataMatch) {
                 try {
@@ -106,8 +113,7 @@ class GoogleMapsParser {
                 }
             }
 
-            // Fallback: парсинг з pathname
-            // Шукаємо /dir/ в URL
+            // ФОРМАТ 3: Path-based (/dir/...)
             const dirMatch = pathname.match(/\/dir\/([^/]+)(?:\/([^/?]+))?(?:\/([^/@?]+))?/);
             
             if (!dirMatch) {
@@ -148,6 +154,32 @@ class GoogleMapsParser {
             console.error('Error parsing full URL:', error);
             throw error;
         }
+    }
+
+    /**
+     * Парсить старий формат Google Maps з query параметрами
+     * Формат: ?daddr=Kaunas&saddr=Vilnius або ?daddr=54.89,23.90&saddr=54.68,25.27
+     */
+    parseQueryBasedUrl(searchParams) {
+        const daddr = searchParams.get('daddr');
+        const saddr = searchParams.get('saddr');
+
+        console.log('Parsing query-based URL:');
+        console.log('  saddr (origin):', saddr);
+        console.log('  daddr (destination):', daddr);
+
+        if (!saddr || !daddr) {
+            throw new Error('Missing saddr or daddr in URL');
+        }
+
+        const result = {
+            origin: this.parsePoint(decodeURIComponent(saddr)),
+            destination: this.parsePoint(decodeURIComponent(daddr)),
+            waypoints: []
+        };
+
+        console.log('✅ Parsed query-based URL:', result);
+        return result;
     }
 
     /**
@@ -201,26 +233,32 @@ class GoogleMapsParser {
      * Парсить одну точку (координати або назву місця)
      * Формати:
      * - "54.6872,25.2797" -> { lat, lon }
-     * - "Vilnius" -> { name: "Vilnius" } (потрібно буде геокодувати)
+     * - "Vilnius" -> { name: "Vilnius" }
+     * - "Vilnius+City+Municipality" -> { name: "Vilnius City Municipality" }
      */
     parsePoint(pointString) {
         // Видалити зайві пробіли та decode URL encoding
-        const decoded = decodeURIComponent(pointString.trim());
+        const decoded = decodeURIComponent(pointString.trim())
+            .replace(/\+/g, ' '); // Замінити + на пробіли
+        
+        console.log(`Parsing point: "${pointString}" -> "${decoded}"`);
         
         // Спроба розпарсити як координати
         const coordMatch = decoded.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
         
         if (coordMatch) {
-            return {
+            const result = {
                 lat: parseFloat(coordMatch[1]),
                 lon: parseFloat(coordMatch[2])
             };
+            console.log(`  ✅ Parsed as coordinates:`, result);
+            return result;
         }
 
         // Якщо це не координати - це назва місця
-        return {
-            name: decoded
-        };
+        const result = { name: decoded };
+        console.log(`  ✅ Parsed as place name:`, result);
+        return result;
     }
 
     /**
