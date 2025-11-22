@@ -9,21 +9,11 @@ const googleMapsParser = require('../utils/googleMapsParser');
 
 /**
  * POST /api/routes/calculate
- * Розрахунок маршруту та вартості
- * Працює як для залогінених так і для гостей
- *
- * Body: {
- *   origin: { lat, lon },
- *   destination: { lat, lon },
- *   waypoints?: [{ lat, lon }],
- *   vehicleId: string
- * }
  */
 router.post('/calculate', optionalAuth, async (req, res) => {
     try {
         const { origin, destination, waypoints, vehicleId } = req.body;
 
-        // Validation
         if (!origin || !destination || !vehicleId) {
             return res.status(400).json({
                 success: false,
@@ -31,7 +21,6 @@ router.post('/calculate', optionalAuth, async (req, res) => {
             });
         }
 
-        // Розрахувати маршрут та вартість
         const result = await costService.calculateTripCost(
             origin,
             destination,
@@ -44,7 +33,7 @@ router.post('/calculate', optionalAuth, async (req, res) => {
             try {
                 const trip = new UserTrip({
                     userId: req.user._id,
-                    vehicleId: vehicleId,
+                    vehicle: vehicleId, // ✅ ВИПРАВЛЕНО: vehicle замість vehicleId
                     origin: result.route?.origin || 'Unknown',
                     destination: result.route?.destination || 'Unknown',
                     originCoords: {
@@ -55,20 +44,29 @@ router.post('/calculate', optionalAuth, async (req, res) => {
                         lat: destination.lat,
                         lon: destination.lon
                     },
-                    waypoints: waypoints || [],
-                    distance: result.route?.distance,
-                    duration: result.route?.duration,
-                    fuelCost: result.fuelCost,
-                    tollCost: result.tollCost,
-                    totalCost: result.totalCost,
-                    countries: result.countries
+                    waypoints: waypoints?.map(wp => wp.name || `${wp.lat},${wp.lon}`) || [],
+                    totalDistance: result.route?.distance || 0, // ✅ ВИПРАВЛЕНО: totalDistance
+                    duration: result.route?.duration || 0,
+                    fuelCost: result.fuelCost?.total || 0, // ✅ ВИПРАВЛЕНО: .total
+                    tollCost: result.tollCost?.total || 0, // ✅ ВИПРАВЛЕНО: .total
+                    totalCost: result.totalCost || 0,
+                    countries: result.countries || [],
+                    // ✅ ДОДАНО: зберегти breakdown
+                    fuelBreakdown: result.fuelCost?.breakdown?.map(fb => ({
+                        countryCode: fb.countryCode,
+                        country: fb.country,
+                        pricePerLiter: fb.pricePerLiter,
+                        liters: fb.estimatedLiters,
+                        cost: fb.cost
+                    })) || []
                 });
 
                 await trip.save();
                 result.tripId = trip._id;
+                console.log('✅ Trip saved successfully:', trip._id);
             } catch (saveError) {
-                console.error('Failed to save trip:', saveError);
-                // Не блокуємо відповідь якщо не вдалось зберегти
+                console.error('❌ Failed to save trip:', saveError);
+                // Не блокуємо відповідь
             }
         }
 
@@ -99,9 +97,11 @@ router.get('/history', authenticate, async (req, res, next) => {
             .sort({ createdAt: -1 })
             .limit(parseInt(limit))
             .skip(parseInt(skip))
-            .populate('vehicleId', 'name fuelType consumption');
+            .populate('vehicle', 'name fuelType consumption'); // ✅ ВИПРАВЛЕНО: vehicle
 
         const total = await UserTrip.countDocuments({ userId: req.user._id });
+
+        console.log(`📋 Found ${trips.length} trips for user ${req.user._id}`);
 
         res.json({
             success: true,
@@ -128,7 +128,7 @@ router.get('/history/:tripId', authenticate, async (req, res, next) => {
         const trip = await UserTrip.findOne({
             _id: req.params.tripId,
             userId: req.user._id
-        }).populate('vehicleId');
+        }).populate('vehicle'); // ✅ ВИПРАВЛЕНО: vehicle
 
         if (!trip) {
             return res.status(404).json({
@@ -178,22 +178,11 @@ router.delete('/history/:tripId', authenticate, async (req, res, next) => {
 
 /**
  * POST /api/routes/import-google
- * Імпорт маршруту з Google Maps URL
- *
- * Body: {
- *   googleMapsUrl: string,
- *   vehicleId: string
- * }
- *
- * Підтримує:
- * - Short URLs: https://maps.app.goo.gl/xxx
- * - Full URLs: https://www.google.com/maps/dir/...
  */
 router.post('/import-google', optionalAuth, async (req, res) => {
     try {
         const { googleMapsUrl, vehicleId } = req.body;
 
-        // Validation
         if (!googleMapsUrl || !vehicleId) {
             return res.status(400).json({
                 success: false,
@@ -201,7 +190,6 @@ router.post('/import-google', optionalAuth, async (req, res) => {
             });
         }
 
-        // Валідація URL
         if (!googleMapsUrl.includes('google.com/maps') && !googleMapsUrl.includes('goo.gl')) {
             return res.status(400).json({
                 success: false,
@@ -213,7 +201,6 @@ router.post('/import-google', optionalAuth, async (req, res) => {
         console.log('URL:', googleMapsUrl);
         console.log('Vehicle ID:', vehicleId);
 
-        // Парсити URL та геокодувати якщо потрібно
         const parsed = await googleMapsParser.parseAndGeocode(googleMapsUrl);
 
         console.log('Parsed coordinates:');
@@ -221,7 +208,6 @@ router.post('/import-google', optionalAuth, async (req, res) => {
         console.log('Destination:', parsed.destination);
         console.log('Waypoints:', parsed.waypoints);
 
-        // Викликати стандартний calculateTripCost з отриманими координатами
         const result = await costService.calculateTripCost(
             parsed.origin,
             parsed.destination,
@@ -234,7 +220,7 @@ router.post('/import-google', optionalAuth, async (req, res) => {
             try {
                 const trip = new UserTrip({
                     userId: req.user._id,
-                    vehicleId: vehicleId,
+                    vehicle: vehicleId, // ✅ ВИПРАВЛЕНО: vehicle
                     origin: parsed.origin.originalName || result.route?.origin || 'Unknown',
                     destination: parsed.destination.originalName || result.route?.destination || 'Unknown',
                     originCoords: {
@@ -245,22 +231,28 @@ router.post('/import-google', optionalAuth, async (req, res) => {
                         lat: parsed.destination.lat,
                         lon: parsed.destination.lon
                     },
-                    waypoints: parsed.waypoints || [],
-                    distance: result.route?.distance,
-                    duration: result.route?.duration,
-                    fuelCost: result.fuelCost,
-                    tollCost: result.tollCost,
-                    totalCost: result.totalCost,
-                    countries: result.countries,
-                    // Зберегти оригінальний Google Maps URL
-                    googleMapsUrl: googleMapsUrl
+                    waypoints: parsed.waypoints?.map(wp => wp.originalName || wp.name) || [],
+                    totalDistance: result.route?.distance || 0, // ✅ ВИПРАВЛЕНО
+                    duration: result.route?.duration || 0,
+                    fuelCost: result.fuelCost?.total || 0, // ✅ ВИПРАВЛЕНО
+                    tollCost: result.tollCost?.total || 0, // ✅ ВИПРАВЛЕНО
+                    totalCost: result.totalCost || 0,
+                    countries: result.countries || [],
+                    googleMapsUrl: googleMapsUrl,
+                    fuelBreakdown: result.fuelCost?.breakdown?.map(fb => ({
+                        countryCode: fb.countryCode,
+                        country: fb.country,
+                        pricePerLiter: fb.pricePerLiter,
+                        liters: fb.estimatedLiters,
+                        cost: fb.cost
+                    })) || []
                 });
 
                 await trip.save();
                 result.tripId = trip._id;
+                console.log('✅ Trip saved successfully:', trip._id);
             } catch (saveError) {
-                console.error('Failed to save trip:', saveError);
-                // Не блокуємо відповідь якщо не вдалось зберегти
+                console.error('❌ Failed to save trip:', saveError);
             }
         }
 
@@ -285,6 +277,5 @@ router.post('/import-google', optionalAuth, async (req, res) => {
         });
     }
 });
-
 
 module.exports = router;
