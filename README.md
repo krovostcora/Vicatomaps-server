@@ -35,7 +35,7 @@ Scrapes live fuel prices from **https://www.tolls.eu/fuel-prices** using Puppete
 1. Opens the fuel prices table on tolls.eu  
 2. Extracts all rows, keeping only euro (€) prices  
 3. Saves data like:
-   ```
+   ```js
    {
      countryCode: "DEU",
      country: "Germany",
@@ -43,6 +43,7 @@ Scrapes live fuel prices from **https://www.tolls.eu/fuel-prices** using Puppete
      diesel: 1.64,
      lpg: 1.01
    }
+   ```
 
 4. Replaces old entries in MongoDB with new data.
 
