@@ -6,35 +6,38 @@ const fuelPriceService = require('../src/services/fuelPriceService');
 
 const initializeDatabase = async () => {
     try {
-        console.log('🚀 Starting database initialization...');
+        console.log('Starting database initialization...');
 
         // Connect to MongoDB
         await connectDB();
-        console.log('✅ Connected to MongoDB');
+        console.log('Connected to MongoDB');
 
         // Initialize vehicles
-        console.log('📦 Initializing default vehicles...');
+        console.log('Initializing default vehicles...');
         await vehicleService.initializeDefaultVehicles();
-        console.log('✅ Vehicles initialized');
+        console.log('Vehicles initialized');
 
-        // Initialize fuel prices
-        console.log('⛽ Initializing default fuel prices...');
-        await fuelPriceService.initializeDefaultPrices();
-        console.log('✅ Fuel prices initialized');
+        // TODO: Prices are polled from external provider. Uncomment below only if you want default
+        //       fallback prices and implement fuelPriceService.initializeDefaultPrices() first.
+        //
+        // // Initialize fuel prices
+        // console.log('Initializing default fuel prices...');
+        // await fuelPriceService.initializeDefaultPrices();
+        // console.log('Fuel prices initialized');
 
         // Verify initialization
         const vehicleCount = await mongoose.connection.collection('vehicles').countDocuments();
         const fuelPriceCount = await mongoose.connection.collection('fuelprices').countDocuments();
 
-        console.log('\n📊 Database Statistics:');
-        console.log(`   - Vehicles: ${vehicleCount}`);
-        console.log(`   - Fuel Prices: ${fuelPriceCount}`);
+        console.log('\nDatabase Statistics:');
+        console.log(`\t- Vehicles: ${vehicleCount}`);
+        console.log(`\t- Fuel Prices: ${fuelPriceCount}`);
 
-        console.log('\n✨ Database initialization completed successfully!');
+        console.log('\nDatabase initialization completed successfully!');
         process.exit(0);
 
     } catch (error) {
-        console.error('❌ Error initializing database:', error);
+        console.error('Error initializing database:', error);
         process.exit(1);
     }
 };
