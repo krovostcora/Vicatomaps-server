@@ -1,10 +1,10 @@
-# **Fuel Price System**
+# Fuel Price System
 
 This document describes the full fuel price subsystem used in the Vicatomaps backend, including data ingestion, normalization, storage, and runtime lookup for cost calculation.
 
 ---
 
-# **1. Overview**
+## 1. Overview
 
 Vicatomaps uses live European fuel prices (gasoline, diesel, LPG) to compute country-specific fuel costs for navigation.
 Fuel price data is sourced from **tolls.eu**, scraped via Puppeteer, normalized, stored in MongoDB, and consumed by the cost engine.
@@ -12,7 +12,7 @@ Fuel price data is sourced from **tolls.eu**, scraped via Puppeteer, normalized,
 Components involved:
 
 | Component               | Responsibility                                   |
-| ----------------------- | ------------------------------------------------ |
+|-------------------------|--------------------------------------------------|
 | **scrapeFuelPrices.js** | Scrapes tolls.eu and writes fresh fuel prices    |
 | **FuelPrice model**     | Stores normalized fuel data in MongoDB           |
 | **fuelPriceService.js** | Fetches fuel prices for cost calculations        |
@@ -21,7 +21,7 @@ Components involved:
 
 ---
 
-# **2. Data Source & Scraping**
+## 2. Data Source & Scraping
 
 Fuel prices are scraped from:
 
@@ -31,14 +31,12 @@ https://www.tolls.eu/fuel-prices
 
 Script: `scripts/scrapeFuelPrices.js`
 
-
 ### Steps:
 
 1. Launch headless Chromium via Puppeteer
 2. Load `.table.fuel-prices` table
 3. Extract:
-
-    * countryCode (ISO2 from hidden input)
+    * countryCode (ISO3 from hidden input)
     * country (name)
     * gasoline, diesel, LPG in €
 4. Normalize numbers
@@ -49,7 +47,7 @@ Example scraped object:
 
 ```json
 {
-  "countryCode": "DE",
+  "countryCode": "DEU",
   "country": "Germany",
   "gasoline": 1.76,
   "diesel": 1.63,
@@ -59,36 +57,33 @@ Example scraped object:
 
 ---
 
-# **3. Database Model**
+## 3. Database Model
 
 From `FuelPrice.js` (via database-schema.md)
 
-
-| Field         | Type          | Description      |
-| ------------- | ------------- | ---------------- |
-| `countryCode` | String (ISO3) | Primary key      |
-| `country`     | String        | Country name     |
-| `gasoline`    | Number        | €/L              |
-| `diesel`      | Number        | €/L              |
-| `lpg`         | Number        | €/L              |
-| `updatedAt`   | Date          | Last scrape time |
-| `createdAt`   | Date          | Auto             |
-| `__v`         | Number        | Mongoose version |
+| Field         | Type   | Description                 |
+|---------------|--------|-----------------------------|
+| `countryCode` | String | ISO3 country code           |
+| `country`     | String | Country name                |
+| `gasoline`    | Number | €/L                         |
+| `diesel`      | Number | €/L                         |
+| `lpg`         | Number | €/L                         |
+| `updatedAt`   | Date   | Last scrape time            |
+| `createdAt`   | Date   | Auto                        |
+| `__v`         | Number | Mongoose version            |
 
 ### Important notes:
 
-* Codes stored as **ISO3**, not ISO2
 * Price fields may be `null` if source page lacks data
 
 ---
 
-# **4. Admin Endpoints**
+## 4. Admin Endpoints
 
 Source: `src/routes/admin.js`
 
-
 | Endpoint                 | Method | Description                              |
-| ------------------------ | ------ | ---------------------------------------- |
+|--------------------------|--------|------------------------------------------|
 | `/api/admin/fuel/update` | POST   | Trigger full scraping & DB overwrite     |
 | `/api/admin/fuel/update` | GET    | Browser-friendly version                 |
 | `/api/admin/fuel/status` | GET    | Check last update time and country count |
@@ -105,41 +100,39 @@ Example response:
 
 ---
 
-# **5. Runtime Fuel Price Lookup**
+## 5. Runtime Fuel Price Lookup
 
 Source: `fuelPriceService.js`
 
-
 This service is used by the cost engine to fetch prices for the specific route countries.
 
-### **5.1 Fuel type normalization**
+### 5.1 Fuel type normalization
 
 Mapping:
 
 | Input      | Normalized |
-| ---------- | ---------- |
+|------------|------------|
 | `petrol`   | gasoline   |
 | `gasoline` | gasoline   |
 | `diesel`   | diesel     |
 | `lpg`      | lpg        |
 
-### **5.2 Country code normalization**
+### 5.2 Country code normalization
 
-FuelPrice stores ISO3 codes.
-RouteService yields ISO2 codes.
+RouteService yields ISO2 codes, which fuelPriceService converts to ISO3 for lookups.
 
 Mapping example:
 
 ```
-DE → DEU  
-PL → POL  
-ES → ESP  
+DE → DEU
+PL → POL
+ES → ESP
 FR → FRA
 ```
 
 ---
 
-# **5.3 getFuelPrice(countryCode, fuelType)**
+## 5.3 getFuelPrice(countryCode, fuelType)
 
 Returns **single** price for given country and fuel type.
 
@@ -158,7 +151,7 @@ const price = await getFuelPrice('DE', 'petrol');
 
 ---
 
-# **5.4 getFuelPrices(countries[], fuelType)**
+## 5.4 getFuelPrices(countries[], fuelType)
 
 Fetches fuel prices for multiple countries at once.
 
@@ -175,10 +168,9 @@ Used directly by the cost engine.
 
 ---
 
-# **6. Usage Inside Cost Engine**
+## 6. Usage Inside Cost Engine
 
 Source: `costService.calculateFuelCost()`
-
 
 ### Full workflow:
 
@@ -187,7 +179,6 @@ Source: `costService.calculateFuelCost()`
 3. Fetch fuel prices for all countries on route via fuelPriceService
 4. Split distance evenly across countries
 5. Compute:
-
    ```
    liters_i = (distance_i / 100) * consumption
    cost_i = liters_i * price_i
@@ -209,7 +200,7 @@ Fuel breakdown example:
 
 ---
 
-# **7. Update Frequency**
+## 7. Update Frequency
 
 Fuel prices are updated manually or via cron-job automation by running:
 
@@ -227,10 +218,10 @@ Recommended update interval: **every 1–2 weeks**.
 
 ---
 
-# **8. Error Handling**
+## 8. Error Handling
 
 | Failure                 | Behavior                        |
-| ----------------------- | ------------------------------- |
+|-------------------------|---------------------------------|
 | Scraper fails           | No DB update; logs error        |
 | Missing country price   | Fuel cost = 0 for that country  |
 | Missing route countries | Entire fuel calculation skipped |
@@ -239,7 +230,7 @@ The system avoids application-level failure; cost engine always returns valid st
 
 ---
 
-# **9. Summary**
+## 9. Summary
 
 The fuel subsystem provides:
 

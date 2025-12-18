@@ -1,10 +1,10 @@
-# **System Architecture**
+# System Architecture
 
 This document describes the complete architecture of the Vicatomaps backend system, including API layers, services, caching, external integrations, and data flow. The architecture is modular, stateless, and optimized for high-performance route processing and cost estimation.
 
 ---
 
-# **1. High-Level Architecture**
+## 1. High-Level Architecture
 
 Vicatomaps consists of two main components:
 
@@ -26,7 +26,7 @@ MongoDB (Vehicles, FuelPrices, Trips, Caches)
 The system is designed with strict separation of concerns:
 
 | Layer                 | Description                                 |
-| --------------------- | ------------------------------------------- |
+|-----------------------|---------------------------------------------|
 | API Layer             | Request routing, validation, auth           |
 | Services Layer        | Business logic (routing, tolls, fuel, cost) |
 | External Integrations | Google Routes, TollGuru, Puppeteer scraper  |
@@ -35,12 +35,12 @@ The system is designed with strict separation of concerns:
 
 ---
 
-# **2. Backend Components**
+## 2. Backend Components
 
 The backend is divided into the following modules:
 
 | Module              | Responsibility                       |
-| ------------------- | ------------------------------------ |
+|---------------------|--------------------------------------|
 | **Routes API**      | Navigation & cost calculation        |
 | **Vehicles API**    | Vehicle dataset retrieval            |
 | **Fuel Prices API** | Latest fuel price data               |
@@ -50,12 +50,12 @@ The backend is divided into the following modules:
 
 ---
 
-# **3. Service Layer Architecture**
+## 3. Service Layer Architecture
 
 The services folder contains the entire business logic of the application.
 
 | Service            | Function                                                              |
-| ------------------ | --------------------------------------------------------------------- |
+|--------------------|-----------------------------------------------------------------------|
 | `routeService`     | Google Routes API integration, route normalization, country detection |
 | `costService`      | Fuel + toll + total cost calculation, route comparison                |
 | `fuelPriceService` | Live fuel price retrieval and normalization                           |
@@ -67,12 +67,12 @@ Each service is stateless and can be invoked independently.
 
 ---
 
-# **4. Data Layer**
+## 4. Data Layer
 
 MongoDB stores:
 
 | Collection           | Purpose                                                        |
-| -------------------- | -------------------------------------------------------------- |
+|----------------------|----------------------------------------------------------------|
 | **Vehicles**         | Predefined vehicle dataset (fuel type, consumption, tank size) |
 | **FuelPrices**       | Latest scraped prices for gasoline, diesel, LPG                |
 | **GoogleRouteCache** | Cached Google Routes API responses                             |
@@ -85,9 +85,9 @@ Caching reduces both Google API and TollGuru API usage costs.
 
 ---
 
-# **5. External Integrations**
+## 5. External Integrations
 
-### **5.1 Google Routes API**
+### 5.1 Google Routes API
 
 Used to retrieve:
 
@@ -107,7 +107,7 @@ Techniques used:
 
 ---
 
-### **5.2 TollGuru API**
+### 5.2 TollGuru API
 
 Provides toll price breakdown across highways, tunnels, segments.
 
@@ -117,17 +117,19 @@ Provides toll price breakdown across highways, tunnels, segments.
 
 ---
 
-### **5.3 Puppeteer Fuel Scraper**
+### 5.3 Puppeteer Fuel Scraper
 
 Scrapes tolls.eu:
 
 * gasoline, diesel, LPG prices
-* ISO2 → ISO3 conversion
+* Country codes stored as-is from source
 * Weekly or manual updates
+
+> *Note:* ISO2 → ISO3 country code conversion happens in `fuelPriceService.js` during runtime lookup.
 
 ---
 
-# **6. Request Processing Pipeline**
+## 6. Request Processing Pipeline
 
 Below is the full pipeline for the main endpoint
 **POST /api/routes/calculate**:
@@ -157,12 +159,12 @@ Response returned to client
 
 ---
 
-# **7. Caching Layer**
+## 7. Caching Layer
 
 Caching is essential for reducing API costs and improving performance.
 
 | Cache                | Key                                       | TTL         | Description                         |
-| -------------------- | ----------------------------------------- | ----------- | ----------------------------------- |
+|----------------------|-------------------------------------------|-------------|-------------------------------------|
 | **GoogleRouteCache** | SHA-256(origin + destination + waypoints) | ~60 days    | Stores parsed routes & country list |
 | **TollCache**        | SHA-256(polyline)                         | ~6 months   | Stores TollGuru toll results        |
 | **FuelPrices**       | Full replace                              | Manual/cron | Cached via database directly        |
@@ -171,22 +173,22 @@ All caches stored in MongoDB for simplicity and portability.
 
 ---
 
-# **8. Security Architecture**
+## 8. Security Architecture
 
-### **8.1 Backend Security**
+### 8.1 Backend Security
 
 * `helmet()` for HTTP headers
 * Rate limiting: 100 requests / 15 min
 * CORS enabled
 * Firebase ID token authentication
 
-### **8.2 Firebase Authentication**
+### 8.2 Firebase Authentication
 
 * Backend validates tokens using Firebase Admin
 * `authenticate` middleware → strict mode
 * `optionalAuth` → guest mode
 
-### **8.3 Environment Variables**
+### 8.3 Environment Variables
 
 * Google API keys
 * TollGuru API key
@@ -197,12 +199,12 @@ All secrets are stored outside the repository.
 
 ---
 
-# **9. Deployment Architecture**
+## 9. Deployment Architecture
 
 (Full deployment details in `devops/deployment.md`, but summary included here.)
 
 | Component      | Environment                     |
-| -------------- | ------------------------------- |
+|----------------|---------------------------------|
 | Backend server | Node.js on Render/VPS           |
 | Database       | MongoDB Atlas                   |
 | Fuel scraper   | Cron-triggered Puppeteer script |
@@ -210,7 +212,7 @@ All secrets are stored outside the repository.
 
 ---
 
-# **10. System Strengths**
+## 10. System Strengths
 
 * Modular microservice-style structure
 * Clean separation of routing, cost, toll, fuel logic
@@ -221,7 +223,7 @@ All secrets are stored outside the repository.
 
 ---
 
-# **11. Future Improvements**
+## 11. Future Improvements
 
 * Polyline-based **per-country distance calculation**
 * Machine-learning cost estimation

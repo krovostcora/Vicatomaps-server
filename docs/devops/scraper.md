@@ -1,11 +1,11 @@
-# **Fuel Price Scraper System**
+# Fuel Price Scraper
 
 This document describes the fuel price scraping pipeline used in Vicatomaps.
 The scraper retrieves European fuel prices from **tolls.eu**, normalizes the dataset, stores it into MongoDB, and exposes an admin API endpoint to trigger updates manually or via scheduled automation.
 
 ---
 
-# **1. Overview**
+## 1. Overview
 
 The scraper is a standalone Node.js script that:
 
@@ -23,12 +23,11 @@ Updates are triggered:
 
 ---
 
-# **2. Scraper Script**
+## 2. Scraper Script
 
 Source: `scripts/scrapeFuelPrices.js`
 
-
-### **2.1 Workflow**
+### 2.1 Workflow
 
 ```
 Start script
@@ -50,17 +49,17 @@ Replace database contents
 Disconnect + close browser
 ```
 
-### **2.2 Extracted fields**
+### 2.2 Extracted fields
 
 | Field         | Description                      |
-| ------------- | -------------------------------- |
-| `countryCode` | ISO2 from hidden input `<input>` |
+|---------------|----------------------------------|
+| `countryCode` | ISO3 from hidden input `<input>` |
 | `country`     | Country name                     |
 | `gasoline`    | Price of petrol (€/L)            |
 | `diesel`      | Price of diesel (€/L)            |
 | `lpg`         | Price of LPG (€/L)               |
 
-### **2.3 Parsing Logic**
+### 2.3 Parsing Logic
 
 The scraper matches prices using:
 
@@ -72,9 +71,9 @@ Values are sanitized:
 
 * commas → dots
 * missing entries → null
-* countryCode converted automatically by backend later (ISO2→ISO3)
+* countryCode stored as-is (ISO3 from source)
 
-### **2.4 Database Update Strategy**
+### 2.4 Database Update Strategy
 
 ```
 FuelPrice.deleteMany({})
@@ -89,12 +88,11 @@ A complete dataset rewrite is intentional:
 
 ---
 
-# **3. Admin API Integration**
+## 3. Admin API Integration
 
 Source: `src/routes/admin.js`
 
-
-### **3.1 `/api/admin/fuel/update`**
+### 3.1 `/api/admin/fuel/update`
 
 Triggers the scraper.
 
@@ -105,25 +103,24 @@ Response example:
 ```json
 {
   "success": true,
-  "message": "Fuel prices updated",
-  "totalCountries": 31
+  "message": "Fuel prices updated successfully",
+  "count": 31
 }
 ```
 
-### **3.2 `/api/admin/fuel/status`**
+### 3.2 `/api/admin/fuel/status`
 
 Returns last update time and number of countries.
 
 ---
 
-# **4. Scheduled Automation (GitHub Actions)**
+## 4. Scheduled Automation (GitHub Actions)
 
 Fuel prices are updated weekly using a GitHub Actions workflow.
 
 Source: `.github/workflows/update-fuel-prices.yml`
 
-
-### **4.1 Schedule**
+### 4.1 Schedule
 
 ```
 Every Sunday at 12:06 UTC
@@ -135,9 +132,9 @@ Cron:
 6 12 * * 0
 ```
 
-### **4.2 Workflow Summary**
+### 4.2 Workflow Summary
 
-#### Step 1 — Wake up Render server
+### Step 1 — Wake up Render server
 
 Ensures Render dyno is running:
 
@@ -146,7 +143,7 @@ curl -X GET https://vicatomaps-server.onrender.com/api/health
 sleep 60
 ```
 
-#### Step 2 — Trigger scraper
+### Step 2 — Trigger scraper
 
 ```sh
 curl -X GET https://vicatomaps-server.onrender.com/api/admin/fuel/update
@@ -154,23 +151,23 @@ curl -X GET https://vicatomaps-server.onrender.com/api/admin/fuel/update
 
 If HTTP ≠ 200 → workflow fails.
 
-#### Step 3 — Verify status
+### Step 3 — Verify status
 
 ```sh
 curl -X GET https://vicatomaps-server.onrender.com/api/admin/fuel/status
 ```
 
-### **Why wake-up step?**
+### Why wake-up step?
 
 Render free tier spins down → scraper endpoint unreachable.
 The workflow ensures startup before performing critical operations.
 
 ---
 
-# **5. Fault Tolerance & Recovery**
+## 5. Fault Tolerance & Recovery
 
 | Issue                  | Behavior                               |
-| ---------------------- | -------------------------------------- |
+|------------------------|----------------------------------------|
 | Puppeteer crash        | Script logs error; DB unchanged        |
 | Website layout changed | Prices become null; admin sees failure |
 | MongoDB unreachable    | Script stops with a fatal error        |
@@ -179,7 +176,7 @@ The workflow ensures startup before performing critical operations.
 
 ---
 
-# **6. Data Usage in Cost Engine**
+## 6. Data Usage in Cost Engine
 
 Fuel prices from the scraper feed directly into:
 
@@ -194,7 +191,7 @@ This enables:
 
 ---
 
-# **7. Summary**
+## 7. Summary
 
 The scraper system provides:
 
