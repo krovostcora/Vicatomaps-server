@@ -2,15 +2,14 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
-    // Зв'язок з Firebase
+    // Firebase connection
     firebaseUid: {
         type: String,
         required: true,
         unique: true,
-        index: true
     },
 
-    // Основна інформація
+    // Basic information
     email: {
         type: String,
         required: true,
@@ -35,7 +34,7 @@ const userSchema = new mongoose.Schema({
         default: 'email'
     },
 
-    // Налаштування користувача
+    // User preferences
     preferences: {
         language: {
             type: String,
@@ -58,35 +57,25 @@ const userSchema = new mongoose.Schema({
         }
     },
 
-    // Кастомні машини користувача
+    // User's custom vehicles
     customVehicles: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Vehicle'
     }],
 
-    // Історія поїздок
+    // Trip history
     tripHistory: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Trip'
     }],
 
-    // Метадані
+    // Metadata
     lastLogin: {
         type: Date,
         default: Date.now
     },
 
-    createdAt: {
-        type: Date,
-        default: Date.now
-    },
-
-    updatedAt: {
-        type: Date,
-        default: Date.now
-    },
-
-    // Для майбутніх фіч
+    // TODO: Unused, for future features (premium tier and account deactivation)
     isActive: {
         type: Boolean,
         default: true
@@ -97,20 +86,16 @@ const userSchema = new mongoose.Schema({
         default: false
     }
 }, {
-    timestamps: true // автоматично керує createdAt та updatedAt
+    timestamps: true
 });
 
-// Індекси для швидкого пошуку
-userSchema.index({ email: 1 });
-userSchema.index({ firebaseUid: 1 });
-
-// Middleware для оновлення lastLogin
+// Method to update lastLogin
 userSchema.methods.updateLastLogin = function() {
     this.lastLogin = new Date();
     return this.save();
 };
 
-// Метод для отримання публічного профілю
+// Method to get public profile
 userSchema.methods.toPublicProfile = function() {
     return {
         id: this._id,

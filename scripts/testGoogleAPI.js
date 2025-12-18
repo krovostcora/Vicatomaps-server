@@ -5,10 +5,10 @@ const axios = require('axios');
 const testGoogleAPI = async () => {
     const GOOGLE_API_KEY = process.env.GOOGLE_ROUTES_API_KEY;
 
-    console.log('🔑 API Key:', GOOGLE_API_KEY ? `${GOOGLE_API_KEY.substring(0, 15)}...` : 'NOT FOUND');
+    console.log('API Key:', GOOGLE_API_KEY ? `${GOOGLE_API_KEY.substring(0, 15)}...` : 'NOT FOUND');
 
     if (!GOOGLE_API_KEY) {
-        console.error('❌ GOOGLE_ROUTES_API_KEY not found in .env file!');
+        console.error('GOOGLE_ROUTES_API_KEY not found in .env file');
         process.exit(1);
     }
 
@@ -28,7 +28,7 @@ const testGoogleAPI = async () => {
         }
     };
 
-    console.log('\n📤 Testing Google Routes API...');
+    console.log('\nTesting Google Routes API...');
     console.log('Request:', JSON.stringify(requestBody, null, 2));
 
     try {
@@ -44,7 +44,7 @@ const testGoogleAPI = async () => {
             }
         );
 
-        console.log('\n✅ SUCCESS!');
+        console.log('\nSUCCESS');
         console.log('Status:', response.status);
         console.log('Routes found:', response.data.routes?.length);
 
@@ -56,25 +56,26 @@ const testGoogleAPI = async () => {
             console.log('- Toll Info:', JSON.stringify(route.travelAdvisory?.tollInfo, null, 2));
         }
 
+        process.exit(0);
     } catch (error) {
-        console.error('\n❌ ERROR!');
+        console.error('\nERROR');
         console.error('Status:', error.response?.status);
         console.error('Error:', JSON.stringify(error.response?.data, null, 2));
 
         if (error.response?.status === 403) {
-            console.error('\n🔒 API Key issue:');
+            console.error('\nAPI Key issue:');
             console.error('- Check if Routes API is enabled');
             console.error('- Check if API key is valid');
             console.error('- Check API key restrictions');
         }
 
         if (error.response?.status === 404) {
-            console.error('\n🔍 Check the API endpoint URL');
+            console.error('\nCheck the API endpoint URL');
             console.error('Should be: https://routes.googleapis.com/directions/v2:computeRoutes');
         }
-    }
 
-    process.exit(0);
+        process.exit(1);
+    }
 };
 
 testGoogleAPI();
