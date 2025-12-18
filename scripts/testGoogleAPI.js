@@ -14,10 +14,10 @@ const testGoogleAPI = async () => {
 
     const requestBody = {
         origin: {
-            address: "Berlin, Germany"
+            address: 'Berlin, Germany'
         },
         destination: {
-            address: "Paris, France"
+            address: 'Paris, France'
         },
         travelMode: 'DRIVE',
         extraComputations: ['TOLLS'],

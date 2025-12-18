@@ -165,8 +165,8 @@ class GoogleMapsParser {
         const saddr = searchParams.get('saddr');
 
         console.log('Parsing query-based URL:');
-        console.log('  saddr (origin):', saddr);
-        console.log('  daddr (destination):', daddr);
+        console.log('\tsaddr (origin):', saddr);
+        console.log('\tdaddr (destination):', daddr);
 
         if (!saddr || !daddr) {
             throw new Error('Missing saddr or daddr in URL');
@@ -251,13 +251,13 @@ class GoogleMapsParser {
                 lat: parseFloat(coordMatch[1]),
                 lon: parseFloat(coordMatch[2])
             };
-            console.log(`\tParsed as coordinates:`, result);
+            console.log('\tParsed as coordinates:', result);
             return result;
         }
 
         // If not coordinates then it's a place name
         const result = { name: decoded };
-        console.log(`\tParsed as place name:`, result);
+        console.log('\tParsed as place name:', result);
         return result;
     }
 

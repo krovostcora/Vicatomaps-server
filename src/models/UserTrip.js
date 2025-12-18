@@ -62,7 +62,7 @@ const userTripSchema = new mongoose.Schema({
         min: 0
     },
 
-    // Детальний breakdown по країнах (опціонально)
+    // Detailed breakdown by country (optional)
     fuelBreakdown: [countryBreakdownSchema],
 
     tollCost: {
@@ -75,7 +75,7 @@ const userTripSchema = new mongoose.Schema({
         min: 0
     },
 
-    // Країни на маршруті
+    // Countries on route
     countries: [{
         type: String
     }],
@@ -85,11 +85,10 @@ const userTripSchema = new mongoose.Schema({
     },
 
     googleMapsUrl: {
-        type: String,
-        required: false
+        type: String
     },
 
-    // Для майбутніх фіч
+    // TODO - UNUSED: For future features
     notes: {
         type: String
     },
@@ -102,11 +101,11 @@ const userTripSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Індекси для швидкого пошуку
+// Indexes for fast lookup
 userTripSchema.index({ userId: 1, createdAt: -1 });
 userTripSchema.index({ userId: 1, isFavorite: 1 });
 
-// Віртуальні поля
+// Virtual fields
 userTripSchema.virtual('distanceKm').get(function() {
     return (this.totalDistance / 1000).toFixed(2);
 });

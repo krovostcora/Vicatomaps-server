@@ -23,12 +23,11 @@ class CostService {
                 consumption: vehicle.consumption
             });
 
-// FIX: do not override if countries=null (routeService will detect properly)
+            // Do not override if countries=null (routeService will detect properly)
             if (!Array.isArray(route.countries) || route.countries.length === 0) {
-                console.warn("âš ï¸ No countries detected in route after detection or cache. Skipping fuel calculation safely.");
+                console.warn('No countries detected in route after detection or cache. Skipping fuel calculation safely.');
                 return { fuelCost: { total: 0, breakdown: [], totalLiters: 0 }, tollCost: { total: 0 }, totalCost: 0 };
             }
-
 
             console.log(`Route: ${route.distance} km through ${route.countries.join(', ')}`);
 
@@ -39,7 +38,7 @@ class CostService {
             const totalCost = (fuelCost.total || 0) + (tollCost.total || 0);
 
             console.log(
-                `Final costs: Fuel=â‚¬${fuelCost.total}, Tolls=â‚¬${tollCost.total}, Total=â‚¬${totalCost}`
+                `Final costs: Fuel=${fuelCost.total} EUR, Tolls=${tollCost.total} EUR, Total=${totalCost} EUR`
             );
 
             return {
@@ -132,8 +131,8 @@ class CostService {
      */
     async calculateFuelCost(route, vehicle) {
         try {
-            const distance = route.distance; // in km
-            const consumption = vehicle.consumption; // L/100km
+            const distance = route.distance;  // in km
+            const consumption = vehicle.consumption;  // L/100km
             const fuelType = vehicle.fuelType.toLowerCase();
 
             console.log(
@@ -182,9 +181,8 @@ class CostService {
             }
 
             console.log(
-                `Total fuel cost: â‚¬${totalCost.toFixed(2)} (${totalLitersUsed.toFixed(
-                    2
-                )} L across ${countries.length} countries)`
+                `Total fuel cost: ${totalCost.toFixed(2)} EUR`,
+                `(${totalLitersUsed.toFixed(2)} L across ${countries.length} countries)`
             );
 
             return {

@@ -1,38 +1,38 @@
 // services/tollGuruService.js
-const axios = require("axios");
-const crypto = require("crypto");
-const TollCache = require("../models/TollCache");
+const axios = require('axios');
+const crypto = require('crypto');
+const TollCache = require('../models/TollCache');
 
 const TOLLGURU_API_KEY = process.env.TOLLGURU_API_KEY;
-const TOLL_TALLY_URL = "https://apis.tollguru.com/toll/v2/complete-polyline-from-mapping-service";
+const TOLL_TALLY_URL = 'https://apis.tollguru.com/toll/v2/complete-polyline-from-mapping-service';
 
 class TollGuruService {
     /**
      * Get toll costs from TollGuru API (with caching)
      */
-    async getTollCosts(polyline, vehicleType = "2AxlesAuto") {
-        console.log("Polyline sample:", polyline.slice(0, 50), "...");
+    async getTollCosts(polyline, vehicleType = '2AxlesAuto') {
+        console.log('Polyline sample:', polyline.slice(0, 50), '...');
 
         if (!TOLLGURU_API_KEY) {
-            console.warn("TollGuru API key not configured");
+            console.warn('TollGuru API key not configured');
             return null;
         }
 
         // Generate cache key (short hash of polyline)
-        const hash = crypto.createHash("sha256").update(polyline).digest("hex");
+        const hash = crypto.createHash('sha256').update(polyline).digest('hex');
 
         // Try reading from cache (valid 6 months)
         const cached = await TollCache.findOne({ hash });
         if (cached && Date.now() - cached.updatedAt.getTime() < 1000 * 60 * 60 * 24 * 180) {
-            console.log("Using cached TollGuru data");
+            console.log('Using cached TollGuru data');
             return cached.data;
         }
 
         try {
-            console.log("Requesting toll data from TollGuru API...");
+            console.log('Requesting toll data from TollGuru API...');
 
             const requestBody = {
-                source: "google",
+                source: 'google',
                 polyline,
                 vehicle: { type: vehicleType },
                 departure_time: new Date().toISOString(),
@@ -40,13 +40,13 @@ class TollGuruService {
 
             const response = await axios.post(TOLL_TALLY_URL, requestBody, {
                 headers: {
-                    "Content-Type": "application/json",
-                    "x-api-key": TOLLGURU_API_KEY,
+                    'Content-Type': 'application/json',
+                    'x-api-key': TOLLGURU_API_KEY,
                 },
                 timeout: 30000,
             });
 
-            console.log("TollGuru response received");
+            console.log('TollGuru response received');
             const parsed = this.parseTollTallyResponse(response.data);
 
             // Save to cache
@@ -58,13 +58,13 @@ class TollGuruService {
 
             return parsed;
         } catch (error) {
-            console.error("Error fetching tolls from TollGuru:");
-            console.error("\tStatus:", error.response?.status);
-            console.error("\tMessage:", error.message);
+            console.error('Error fetching tolls from TollGuru:');
+            console.error('\tStatus:', error.response?.status);
+            console.error('\tMessage:', error.message);
 
             // Use cached version if available
             if (cached) {
-                console.warn("Using cached TollGuru data due to error");
+                console.warn('Using cached TollGuru data due to error');
                 return cached.data;
             }
 
@@ -76,10 +76,10 @@ class TollGuruService {
      * Parse TollGuru (Toll Tally) API response
      */
     parseTollTallyResponse(data) {
-        console.log("Parsing TollGuru response...");
+        console.log('Parsing TollGuru response...');
 
         if (!data || !data.route) {
-            console.log("No route data in response");
+            console.log('No route data in response');
             return null;
         }
 
@@ -88,20 +88,20 @@ class TollGuruService {
         const costs = route.costs || {};
 
         if (tolls.length === 0) {
-            console.log("No tolls on this route");
+            console.log('No tolls on this route');
             return {
                 total: 0,
                 totalOriginal: 0,
-                currency: "EUR",
+                currency: 'EUR',
                 breakdown: [],
-                source: "tollguru",
+                source: 'tollguru',
             };
         }
 
         console.log(`Found ${tolls.length} toll(s)`);
 
         const totalCost = costs.tag || costs.cash || 0;
-        const currency = costs.currency || "EUR";
+        const currency = costs.currency || 'EUR';
 
         const breakdown = tolls.map((toll, index) => {
             const tollCost = toll.tagCost || toll.cashCost || 0;
@@ -111,12 +111,12 @@ class TollGuruService {
                 cost: this.convertToEUR(tollCost, tollCurrency),
                 costOriginal: tollCost,
                 currency: tollCurrency,
-                country: toll.country || "Unknown",
-                road: toll.road || "",
+                country: toll.country || 'Unknown',
+                road: toll.road || '',
                 lat: toll.lat,
                 lng: toll.lng,
                 arrival: toll.arrival,
-                description: `${toll.name || "Toll"} - ${toll.road || ""}`,
+                description: `${toll.name || 'Toll'} - ${toll.road || ''}`,
             };
         });
 
@@ -129,7 +129,7 @@ class TollGuruService {
             totalOriginal: totalCost,
             currency,
             breakdown,
-            source: "tollguru",
+            source: 'tollguru',
             summary: {
                 distance: route.summary?.distance,
                 duration: route.summary?.duration,
