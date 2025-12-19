@@ -1,41 +1,40 @@
-
-# 🛢️ Fuel Price Calculation System  
+# Fuel Price Calculation System
 > **VicatOMaps Backend — Fuel & Route Cost Computation**
 
-This module handles **fuel price management and trip cost estimation**.  
-It automatically scrapes fuel data from *tolls.eu*, stores it in MongoDB,  
+This module handles **fuel price management and trip cost estimation**.
+It automatically scrapes fuel data from *tolls.eu*, stores it in MongoDB,
 and uses it to calculate the fuel cost of a route based on countries crossed.
 
 ---
 
-## 🧩 Architecture Overview
+## Architecture Overview
 
 ```
-tolls.eu  
-↓  
-scrapeFuelPrices.js   
-↓   
-MongoDB (FuelPrice)  
-↓  
-fuelPriceService.js  
-↓  
-costService.js  
-↓  
-routeService.js → Google Routes API  
-````
+tolls.eu
+   |
+scrapeFuelPrices.js
+   |
+MongoDB (FuelPrice)
+   |
+fuelPriceService.js
+   |
+costService.js
+   |
+routeService.js -> Google Routes API
+```
 
-----------
+---
 
-## ⚙️ Components
+## Components
 
 ### 1. `scripts/scrapeFuelPrices.js`
 Scrapes live fuel prices from **https://www.tolls.eu/fuel-prices** using Puppeteer.
 
 **Flow:**
-1. Opens the fuel prices table on tolls.eu  
-2. Extracts all rows, keeping only euro (€) prices  
+1. Opens the fuel prices table on tolls.eu
+2. Extracts all rows, keeping only euro (€) prices
 3. Saves data like:
-   ```
+   ```js
    {
      countryCode: "DEU",
      country: "Germany",
@@ -43,6 +42,7 @@ Scrapes live fuel prices from **https://www.tolls.eu/fuel-prices** using Puppete
      diesel: 1.64,
      lpg: 1.01
    }
+   ```
 
 4. Replaces old entries in MongoDB with new data.
 
@@ -54,11 +54,11 @@ Defines MongoDB schema for fuel prices:
 
 ```js
 {
-  countryCode: String, // ISO-3 code (DEU, POL, FRA)
+  countryCode: String,  // ISO3 code (DEU, POL, FRA)
   country: String,
-  gasoline: Number, // petrol (gasoline)
-  diesel: Number,   // diesel fuel
-  lpg: Number,      // liquefied petroleum gas
+  gasoline: Number,  // petrol (gasoline)
+  diesel: Number,    // diesel fuel
+  lpg: Number,       // liquefied petroleum gas
   updatedAt: Date
 }
 ```
@@ -78,14 +78,14 @@ getFuelPrice(countryCode, fuelType)
 
 **Logic:**
 
-* Converts ISO-2 → ISO-3 country codes (`PL` → `POL`, etc.)
+* Converts ISO2 to ISO3 country codes (`PL` → `POL`, etc.)
 * Maps vehicle fuel types:
 
-  ```js
-  petrol → gasoline
-  gasoline → gasoline
-  diesel → diesel
-  lpg → lpg
+  ```
+  petrol   -> gasoline
+  gasoline -> gasoline
+  diesel   -> diesel
+  lpg      -> lpg
   ```
 * Returns a list of countries with their corresponding price:
 
@@ -107,23 +107,22 @@ Responsible for route generation and country detection.
 
 **APIs used:**
 
-* `Google Routes API` → retrieves route geometry (polyline)
-* `Google Geocoding API` → detects countries along the route
+* `Google Routes API` - retrieves route geometry (polyline)
+* `Google Geocoding API` - detects countries along the route
 
 **Algorithm:**
 
 1. Decode route polyline to coordinate points
-2. Sample every ~200th point to reduce API load
+2. Sample every 200th point to reduce API load
 3. Reverse geocode each point:
 
-   ```bash
+   ```
    https://maps.googleapis.com/maps/api/geocode/json?latlng=<LAT>,<LON>&result_type=country
    ```
-4. Extract country ISO code (`PL`, `DE`, `FR`, `ES`, `PT`)
+4. Extract country ISO2 code (`PL`, `DE`, `FR`, `ES`, `PT`)
 5. Return a unique array of countries for the route.
 
-✅ Uses your existing `GOOGLE_ROUTES_API_KEY`
-✅ Within free tier (~500 requests/month)
+Uses `GOOGLE_ROUTES_API_KEY` for both Routes and Geocoding APIs.
 
 ---
 
@@ -161,51 +160,49 @@ Handles full **trip cost calculation**, including fuel and tolls.
 
 ---
 
-## 🧮 Formulas
+## Formulas
 
 | Metric                 | Formula                                             | Description                   |
-| ---------------------- | --------------------------------------------------- | ----------------------------- |
+|------------------------|-----------------------------------------------------|-------------------------------|
 | **Total liters**       | `(distance / 100) * consumption`                    | overall fuel usage            |
 | **Liters per country** | `(distance / countries.length) / 100 * consumption` | approximate usage per country |
 | **Cost per country**   | `liters * pricePerLiter`                            | cost per segment              |
-| **Total cost**         | `Σ(cost[i])`                                        | total sum                     |
+| **Total cost**         | `sum(cost[i])`                                      | total sum                     |
 
 ---
 
-## 🧭 End-to-End Flow
+## End-to-End Flow
 
 ```
-1️⃣ User sends /api/routes/calculate
-2️⃣ Google Routes API returns route geometry
-3️⃣ routeService detects countries on route
-4️⃣ costService fetches fuel prices
-5️⃣ costService calculates liters & cost per country
-6️⃣ API returns total and breakdown
+1. User sends /api/routes/calculate
+2. Google Routes API returns route geometry
+3. routeService detects countries on route
+4. costService fetches fuel prices
+5. costService calculates liters & cost per country
+6. API returns total and breakdown
 ```
 
 ---
 
-## 🧠 Fuel Type Reference
+## Fuel Type Reference
 
-| Fuel Type  | DB Field          | Description               |
-| ---------- | ----------------- | ------------------------- |
-| `gasoline` | petrol / gasoline | Regular car fuel (бензин) |
-| `diesel`   | diesel            | Diesel (солярка)          |
-| `lpg`      | liquefied gas     | Autogas (пропан-бутан)    |
-
----
-
-## ⚙️ Optimization & Production Notes
-
-* Cache detected countries in `RouteCache` to minimize API calls.
-* Avoid scraping tolls.eu more than once per day.
-* For long routes, sample every 300–400 points.
-* Google API free limit: **~500 requests/month** is usually enough.
-* Enable billing on Google Cloud to keep free-tier active.
+| Fuel Type  | DB Field | Description   |
+|------------|----------|---------------|
+| `gasoline` | gasoline | Petrol        |
+| `diesel`   | diesel   | Diesel        |
+| `lpg`      | lpg      | Liquefied gas |
 
 ---
 
-## 🚀 Local Usage
+## Caching
+
+* Route data cached in `GoogleRouteCache` (TTL ~60 days)
+* Toll data cached in `TollCache` (TTL ~6 months)
+* Fuel prices updated weekly via GitHub Actions
+
+---
+
+## Local Usage
 
 ```bash
 # 1. Scrape fresh fuel prices
@@ -226,7 +223,7 @@ curl -X POST http://localhost:3000/api/routes/calculate \
 
 ---
 
-## 📦 Example Response
+## Example Response
 
 ```json
 {
@@ -245,3 +242,14 @@ curl -X POST http://localhost:3000/api/routes/calculate \
   "currency": "EUR"
 }
 ```
+
+---
+
+## Related Documentation
+
+* [Architecture Overview](docs/overview/architecture.md)
+* [Cost Calculation](docs/backend/cost-calculation.md)
+* [Toll System](docs/backend/toll-system.md)
+* [Fuel System](docs/backend/fuel-system.md)
+* [API Routes](docs/api/routes.md)
+* [Deployment](docs/devops/deployment.md)

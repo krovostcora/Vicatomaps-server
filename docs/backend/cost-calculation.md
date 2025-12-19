@@ -1,11 +1,11 @@
-# **Cost Calculation Engine**
+# Cost Calculation Engine
 
 This document describes the full cost-calculation logic used in the Vicatomaps backend.
 The engine computes **fuel cost**, **toll cost**, **route alternatives**, and **total trip cost**, using real vehicle specifications, live fuel prices, and toll data from multiple sources.
 
 ---
 
-# **1. Overview**
+## 1. Overview
 
 Cost calculation is handled by the `CostService` module. It processes a parsed route returned from Google Routes API and produces:
 
@@ -18,12 +18,12 @@ The engine is deterministic, modular, and relies on actual MongoDB data and cach
 
 ---
 
-# **2. Inputs & Outputs**
+## 2. Inputs & Outputs
 
-## **2.1 Inputs**
+### 2.1 Inputs
 
 | Input             | Source               | Description               |
-| ----------------- | -------------------- | ------------------------- |
+|-------------------|----------------------|---------------------------|
 | `route.distance`  | Google Routes API    | Total distance in km      |
 | `route.countries` | Reverse geocoding    | ISO2 country list         |
 | `vehicleId`       | MongoDB              | Fuel type and consumption |
@@ -32,7 +32,7 @@ The engine is deterministic, modular, and relies on actual MongoDB data and cach
 
 ---
 
-## **2.2 Output Format**
+### 2.2 Output Format
 
 The cost engine returns the following structure:
 
@@ -54,7 +54,7 @@ The cost engine returns the following structure:
 
 ---
 
-# **3. Calculation Flow**
+## 3. Calculation Flow
 
 Below is the exact internal workflow as implemented in `CostService`.
 
@@ -74,20 +74,19 @@ User → /routes/calculate
 
 ---
 
-# **4. Fuel Cost Engine**
+## 4. Fuel Cost Engine
 
 Source: `costService.calculateFuelCost()`
 
-
-## **4.1 Inputs**
+### 4.1 Inputs
 
 * `distance` (km)
 * `vehicle.consumption` (L/100km)
-* `vehicle.fuelType` (petrol/diesel/lpg)
+* `vehicle.fuelType` (petrol/diesel/lpg/electric)
 * `route.countries[]`
 * FuelPrice collection
 
-## **4.2 Fuel price retrieval**
+### 4.2 Fuel price retrieval
 
 Fuel prices are fetched via:
 
@@ -112,7 +111,7 @@ Example returned object:
 
 ---
 
-## **4.3 Total liters**
+### 4.3 Total liters
 
 ```
 totalLiters = (distance / 100) * consumption
@@ -126,7 +125,7 @@ Example:
 
 ---
 
-## **4.4 Distance distribution per country**
+### 4.4 Distance distribution per country
 
 Current logic uses **equal distribution** based on number of countries:
 
@@ -138,7 +137,7 @@ distancePerCountry = distance / countries.length
 
 ---
 
-## **4.5 Per-country liters**
+### 4.5 Per-country liters
 
 ```
 liters_i = (distancePerCountry / 100) * consumption
@@ -146,7 +145,7 @@ liters_i = (distancePerCountry / 100) * consumption
 
 ---
 
-## **4.6 Per-country cost**
+### 4.6 Per-country cost
 
 ```
 cost_i = liters_i * pricePerLiter
@@ -166,7 +165,7 @@ The breakdown element looks like:
 
 ---
 
-## **4.7 Fuel cost result**
+### 4.7 Fuel cost result
 
 Returned structure:
 
@@ -180,13 +179,12 @@ Returned structure:
 
 ---
 
-# **5. Toll Cost Engine**
+## 5. Toll Cost Engine
 
 The toll engine uses a **hierarchical, multi-source fallback system**.
 Source: `tollService.js`
 
-
-## **5.1 Priority Order**
+### 5.1 Priority Order
 
 1. **TollGuru API** (most reliable)
 2. **Google TollInfo (estimatedPrice)**
@@ -195,10 +193,9 @@ Source: `tollService.js`
 
 ---
 
-## **5.2 Step 1 — TollGuru API**
+### 5.2 Step 1 — TollGuru API
 
 Source: `tollGuruService.js`
-
 
 ### Trigger conditions:
 
@@ -227,7 +224,7 @@ Breakdown example:
 
 ---
 
-## **5.3 Step 2 — Google TollInfo**
+### 5.3 Step 2 — Google TollInfo
 
 Used when TollGuru unavailable.
 
@@ -249,7 +246,7 @@ price = units + nanos / 1e9
 
 ---
 
-## **5.4 Step 3 — Leg-level tolls**
+### 5.4 Step 3 — Leg-level tolls
 
 If some legs contain tolls:
 
@@ -259,25 +256,33 @@ leg.travelAdvisory.tollInfo
 
 ---
 
-## **5.5 Step 4 — Fallback model**
+### 5.5 Step 4 — Fallback model
 
 For Europe, a built-in model covers distance-based and vignette-based tolls.
 
 Examples:
 
 | Country      | Type           | Rule         |
-| ------------ | -------------- | ------------ |
+|--------------|----------------|--------------|
 | FR           | distance-based | €0.10 per km |
 | IT           | distance-based | €0.07 per km |
+| ES           | distance-based | €0.09 per km |
+| PT           | distance-based | €0.10 per km |
+| PL           | distance-based | €0.05 per km |
+| HR           | distance-based | €0.06 per km |
+| GR           | distance-based | €0.07 per km |
 | AT           | vignette       | €9.60 fixed  |
 | CH           | vignette       | €40/year     |
+| CZ           | vignette       | €8.50 fixed  |
+| SK           | vignette       | €10 fixed    |
+| SI           | vignette       | €15 fixed    |
 | DE / NL / BE | free           | €0           |
 
 This ensures the system returns **non-zero toll estimates** even where APIs lack data.
 
 ---
 
-## **5.6 Toll cost result**
+### 5.6 Toll cost result
 
 Structure returned:
 
@@ -285,16 +290,15 @@ Structure returned:
 {
   "total": 12.50,
   "breakdown": [ ... ],
-  "source": "tollguru" | "google" | "estimated" | "error"
+  "source": "tollguru" | "google" | "estimated"
 }
 ```
 
 ---
 
-# **6. Total Cost Calculation**
+## 6. Total Cost Calculation
 
 Source: `calculateRouteCost()`
-
 
 ```
 totalCost = fuelCost.total + tollCost.total
@@ -315,7 +319,7 @@ Returned format:
 
 ---
 
-# **7. Alternative Routes Comparison**
+## 7. Alternative Routes Comparison
 
 The system evaluates **every alternative route** returned by Google:
 
@@ -335,7 +339,6 @@ Then identifies:
 
 Method: `compareRoutes()`
 
-
 Returned structure:
 
 ```json
@@ -349,12 +352,12 @@ Returned structure:
 
 ---
 
-# **8. Error Handling**
+## 8. Error Handling
 
 Common cases handled:
 
 | Error                 | Cause                   | Behavior                |
-| --------------------- | ----------------------- | ----------------------- |
+|-----------------------|-------------------------|-------------------------|
 | Missing fuel prices   | Scraper outdated        | Fuel cost = 0           |
 | Missing toll info     | No Google/TollGuru data | Uses fallback model     |
 | No countries detected | Failed geocode          | Fuel cost = 0, toll = 0 |
@@ -362,7 +365,7 @@ Common cases handled:
 
 ---
 
-# **9. Summary**
+## 9. Summary
 
 The cost-calculation engine integrates:
 

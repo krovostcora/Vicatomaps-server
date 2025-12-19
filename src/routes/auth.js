@@ -7,13 +7,13 @@ const { authenticate } = require('../middleware/authenticate');
 
 /**
  * POST /api/auth/register
- * Реєстрація нового користувача або оновлення існуючого
- * Body: немає (всі дані з Firebase token)
+ * Register new user or update existing one
+ * Body: none (all data from Firebase token)
  * Headers: Authorization: Bearer <firebase_id_token>
  */
 router.post('/register', async (req, res) => {
     try {
-        // Отримати токен
+        // Get token
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return res.status(401).json({
@@ -24,17 +24,17 @@ router.post('/register', async (req, res) => {
 
         const idToken = authHeader.split('Bearer ')[1];
 
-        // Verify токен
+        // Verify token
         const decodedToken = await verifyIdToken(idToken);
 
-        // Отримати повну інформацію з Firebase
+        // Get full information from Firebase
         const firebaseUser = await getFirebaseUser(decodedToken.uid);
 
-        // Перевірити чи користувач вже існує
+        // Check if user already exists
         let user = await User.findOne({ firebaseUid: decodedToken.uid });
 
         if (user) {
-            // Оновити існуючого користувача
+            // Update existing user
             user.email = firebaseUser.email;
             user.displayName = firebaseUser.displayName || user.displayName;
             user.photoURL = firebaseUser.photoURL || user.photoURL;
@@ -49,7 +49,7 @@ router.post('/register', async (req, res) => {
             });
         }
 
-        // Створити нового користувача
+        // Create new user
         user = new User({
             firebaseUid: decodedToken.uid,
             email: firebaseUser.email,
@@ -80,7 +80,7 @@ router.post('/register', async (req, res) => {
 
 /**
  * GET /api/auth/me
- * Отримати інформацію про поточного користувача
+ * Get current user information
  * Headers: Authorization: Bearer <firebase_id_token>
  */
 router.get('/me', authenticate, async (req, res) => {
@@ -100,7 +100,7 @@ router.get('/me', authenticate, async (req, res) => {
 
 /**
  * PUT /api/auth/profile
- * Оновити профіль користувача
+ * Update user profile
  * Body: { displayName?, preferences? }
  */
 router.put('/profile', authenticate, async (req, res) => {
@@ -109,7 +109,7 @@ router.put('/profile', authenticate, async (req, res) => {
 
         const user = req.user;
 
-        // Оновити дозволені поля
+        // Update allowed fields
         if (displayName !== undefined) {
             user.displayName = displayName;
         }
@@ -141,17 +141,17 @@ router.put('/profile', authenticate, async (req, res) => {
 
 /**
  * DELETE /api/auth/account
- * Видалити акаунт користувача
- * IMPORTANT: це тільки видаляє з MongoDB, з Firebase треба видаляти окремо
+ * Delete user account
+ * NOTE: currently this only deletes from MongoDB, Firebase deletion must be handled separately
  */
 router.delete('/account', authenticate, async (req, res) => {
     try {
         const user = req.user;
 
-        // Видалити користувача з MongoDB
+        // Delete user from MongoDB
         await User.deleteOne({ _id: user._id });
 
-        // TODO: Також видалити всі його trips, custom vehicles тощо
+        // TODO: Also delete all user's trips, custom vehicles, etc.
 
         res.json({
             success: true,
@@ -173,8 +173,8 @@ router.delete('/account', authenticate, async (req, res) => {
  */
 router.post('/logout', authenticate, async (req, res) => {
     try {
-        // На клієнті просто видалити токен з storage
-        // Можна додати revoke token якщо потрібно
+        // NOTE: Client should delete token from storage
+        // TODO: Can add token revocation here if needed
 
         res.json({
             success: true,

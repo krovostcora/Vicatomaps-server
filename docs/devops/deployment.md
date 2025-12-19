@@ -1,16 +1,16 @@
-# **Deployment Guide**
+# Deployment Guide
 
 This document outlines the full deployment workflow for the Vicatomaps backend, including infrastructure components, environment variables, automated deployment, and scheduled maintenance tasks.
 
 ---
 
-# **1. Deployment Architecture Overview**
+## 1. Deployment Architecture Overview
 
 Vicatomaps backend is deployed as a **Node.js application** running on a cloud hosting provider (Render).
 Its architecture consists of the following components:
 
 | Component          | Platform                   | Purpose                                     |
-| ------------------ | -------------------------- | ------------------------------------------- |
+|--------------------|----------------------------|---------------------------------------------|
 | **Backend Server** | Render                     | Express API server                          |
 | **Database**       | MongoDB Atlas              | Stores vehicles, trips, caches, fuel prices |
 | **Fuel Scraper**   | GitHub Actions + Puppeteer | Weekly price updates                        |
@@ -33,7 +33,7 @@ GitHub Actions (CRON)
 
 ---
 
-# **2. Environment Configuration**
+## 2. Environment Configuration
 
 Environment variables are required by:
 
@@ -46,7 +46,7 @@ Environment variables are required by:
 ### Required Variables
 
 | Variable                        | Description                                |
-| ------------------------------- | ------------------------------------------ |
+|---------------------------------|--------------------------------------------|
 | `MONGODB_URI`                   | Full MongoDB Atlas connection string       |
 | `GOOGLE_ROUTES_API_KEY`         | Key for Google Routes & Geocoding          |
 | `GOOGLE_MAPS_API_KEY`           | Alternative key for geocoding fallback     |
@@ -66,14 +66,13 @@ These variables are required by:
 
 ---
 
-# **3. Deployment Pipeline (Automatic)**
+## 3. Deployment Pipeline (Automatic)
 
 The backend auto-deploys when changes are pushed to `main`.
 
 ### Workflow File
 
-`.github/workflows/deploy-backend.yml`
-
+`.github/workflows/render-deploy.yml`
 
 ### Trigger
 
@@ -100,7 +99,7 @@ Deployment is fully automated; no manual steps required.
 
 ---
 
-# **4. Manual Deployment (Local → Render)**
+## 4. Manual Deployment (Local → Render)
 
 If needed, deploy manually via Render Dashboard:
 
@@ -121,13 +120,12 @@ If needed, deploy manually via Render Dashboard:
 
 ---
 
-# **5. Database Deployment**
+## 5. Database Deployment
 
 MongoDB is hosted on **MongoDB Atlas**.
 Connection is initialized via:
 
 `connectDB()` → `src/config/database.js`
-
 
 ### Deployment requirements:
 
@@ -139,7 +137,7 @@ No migrations are required; Mongoose handles schemas automatically.
 
 ---
 
-# **6. Production Server Behavior**
+## 6. Production Server Behavior
 
 During startup, `server.js`:
 
@@ -152,7 +150,6 @@ During startup, `server.js`:
 
 Source: `server.js`
 
-
 Rate limiting:
 
 ```
@@ -163,14 +160,13 @@ This protects against basic DDoS and brute-force attempts.
 
 ---
 
-# **7. Scheduled Maintenance (CRON Automation)**
+## 7. Scheduled Maintenance (CRON Automation)
 
 Fuel prices are updated weekly using a GitHub Actions workflow.
 
 ### Workflow File
 
 `.github/workflows/update-fuel-prices.yml`
-
 
 ### Schedule
 
@@ -188,7 +184,7 @@ This ensures fuel prices stay up to date without manual intervention.
 
 ---
 
-# **8. Rendering + Uptime Considerations**
+## 8. Rendering + Uptime Considerations
 
 Because Render’s free tier sleeps after inactivity, the GitHub workflow performs:
 
@@ -204,7 +200,7 @@ This guarantees:
 
 ---
 
-# **9. Logging & Monitoring**
+## 9. Logging & Monitoring
 
 The server logs:
 
@@ -222,19 +218,19 @@ Rendering and troubleshooting tools:
 
 ---
 
-# **10. Failure Recovery**
+## 10. Failure Recovery
 
-| Failure                         | Behavior                      | Resolution                   |
-| ------------------------------- | ----------------------------- | ---------------------------- |
-| Render cannot pull latest build | Webhook error                 | Re-trigger deployment        |
-| Fuel scraper fails              | Workflow reports failure      | Fix scraper or page selector |
-| MongoDB down                    | Server exits                  | Restore Atlas or reconnect   |
-| Missing API key                 | Startup logs show “❌ Missing” | Add key in Render env        |
-| Firebase key misformatted       | Token verification fails      | Replace `\\n` with `\n`      |
+| Failure                         | Behavior                    | Resolution                   |
+|---------------------------------|-----------------------------|------------------------------|
+| Render cannot pull latest build | Webhook error               | Re-trigger deployment        |
+| Fuel scraper fails              | Workflow reports failure    | Fix scraper or page selector |
+| MongoDB down                    | Server exits                | Restore Atlas or reconnect   |
+| Missing API key                 | Startup logs show "Missing" | Add key in Render env        |
+| Firebase key misformatted       | Token verification fails    | Replace `\\n` with `\n`      |
 
 ---
 
-# **11. Local Development Workflow**
+## 11. Local Development Workflow
 
 For local development:
 
@@ -252,7 +248,7 @@ Requires `.env` with:
 
 ---
 
-# **12. Summary**
+## 12. Summary
 
 Vicatomaps backend uses a clean, automated deployment architecture:
 

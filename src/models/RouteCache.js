@@ -1,3 +1,7 @@
+// TODO - UNUSED: This model is not imported anywhere in the codebase.
+//                GoogleRouteCache.js is used instead (hash-based lookup).
+//                Consider removing this file or repurposing/merging it.
+
 // src/models/RouteCache.js
 const mongoose = require('mongoose');
 

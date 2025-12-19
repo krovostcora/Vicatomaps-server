@@ -1,6 +1,6 @@
-# Error Handling Specification
+# Error Handling
 
-This document describes the unified error-handling strategy for the Vicatomaps backend, including error formats, HTTP codes, service-level behaviour, fallback logic, and recovery mechanisms.
+This document describes the unified error-handling strategy for the Vicatomaps backend, including error formats, HTTP codes, service-level behavior, fallback logic, and recovery mechanisms.
 
 The backend follows a strict error response structure and uses a layered approach to prevent hard failures while interacting with external APIs (Google, TollGuru, Puppeteer).
 
@@ -17,7 +17,7 @@ All errors returned from the API follow the same JSON structure:
     "status": 400
   }
 }
-````
+```
 
 This format is applied in:
 
@@ -31,7 +31,7 @@ This format is applied in:
 # 2. HTTP Status Codes
 
 | Code    | Meaning           | When Used                                |
-| ------- | ----------------- | ---------------------------------------- |
+|---------|-------------------|------------------------------------------|
 | **400** | Bad Request       | Invalid input, missing fields            |
 | **401** | Unauthorized      | Missing / invalid Firebase token         |
 | **403** | Forbidden         | (Reserved for future admin restrictions) |
@@ -91,13 +91,11 @@ Token valid but user not registered:
 
 All definitions come from `src/middleware/authenticate.js`.
 
-
 ---
 
 # 4. Route Engine Errors
 
 Source: `routeService.js`
-
 
 ### 4.1 Google API failures
 
@@ -141,7 +139,6 @@ System never crashes on geocode errors.
 
 Source: `costService.js`
 
-
 ### 5.1 Missing vehicle
 
 If `vehicleId` is invalid:
@@ -157,7 +154,7 @@ Returned as `404` by route handler.
 If no countries detected:
 
 ```
-⚠️ No countries detected...
+No countries detected in route after detection or cache. Skipping fuel calculation safely.
 fuelCost.total = 0
 tollCost.total = 0
 ```
@@ -193,7 +190,6 @@ Response:
 
 Source: `fuelPriceService.js`
 
-
 ### 6.1 Invalid fuel type
 
 Normalized to gasoline/diesel/LPG; invalid types return null prices.
@@ -205,7 +201,6 @@ Returned price = `null`, breakdown cost = 0.
 ### 6.3 Scraper errors
 
 From `scripts/scrapeFuelPrices.js`:
-
 
 * Puppeteer crash
 * DOM selector change
@@ -222,9 +217,7 @@ Behaviour:
 # 7. Toll System Errors
 
 Source: `tollService.js`
-
 and `tollGuruService.js`
-
 
 ### 7.1 TollGuru API error
 
@@ -265,7 +258,6 @@ If some legs contain tollInfo, but not all:
 
 Source: `UserTrip.js` & route handler.
 
-
 ### 8.1 Trip saving skipped for guests
 
 No error — returns `savedToHistory: false`.
@@ -284,7 +276,6 @@ If DB write fails:
 # 9. Server-Level Errors
 
 Defined in `server.js` final middleware.
-
 
 ### Express error handler:
 

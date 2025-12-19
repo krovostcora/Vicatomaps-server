@@ -1,31 +1,30 @@
 # Route Engine
 
-This document describes the complete route-processing subsystem of the Vicatomaps backend.  
+This document describes the complete route-processing subsystem of the Vicatomaps backend.
 It includes Google Routes API integration, polyline processing, route normalization, country detection, caching, and alternative route handling.
 
 ---
 
-# 1. Overview
+## 1. Overview
 
 The Route Engine is responsible for transforming raw origin/destination data into structured route objects used by the cost engine.
 
 Key responsibilities:
 
-| Component | Function |
-|----------|----------|
-| Google Routes API | Fetches distance, duration, geometry, tollInfo |
-| Polyline decoding | Converts encoded geometry into coordinates |
-| Country detection | Reverse-geocodes sampled points from the polyline |
-| Route normalization | Converts Google response into unified structure |
-| Caching | Prevents redundant API calls using SHA-256 keys |
-| Alternative routes | Supports multiple route options |
+| Component           | Function                                          |
+|---------------------|---------------------------------------------------|
+| Google Routes API   | Fetches distance, duration, geometry, tollInfo    |
+| Polyline decoding   | Converts encoded geometry into coordinates        |
+| Country detection   | Reverse-geocodes sampled points from the polyline |
+| Route normalization | Converts Google response into unified structure   |
+| Caching             | Prevents redundant API calls using SHA-256 keys   |
+| Alternative routes  | Supports multiple route options                   |
 
-Source file: `src/services/routeService.js`  
-:contentReference[oaicite:0]{index=0}
+Source file: `src/services/routeService.js`
 
 ---
 
-# 2. Input & Output
+## 2. Input & Output
 
 ## 2.1 Input
 
@@ -37,7 +36,7 @@ Source file: `src/services/routeService.js`
     { "lat": 53.0000, "lon": 23.9000 }
   ]
 }
-````
+```
 
 ## 2.2 Output
 
@@ -58,9 +57,9 @@ Source file: `src/services/routeService.js`
 
 ---
 
-# 3. Google Routes API Integration
+## 3. Google Routes API Integration
 
-The system uses **Routes API v2**, PATCH method, and selective field acquisition (`fieldMask`) to minimize billing.
+The system uses **Routes API v2**, POST method, and selective field acquisition (`fieldMask`) to minimize billing.
 
 ### 3.1 Request
 
@@ -86,14 +85,14 @@ The engine normalizes all of them.
 
 ---
 
-# 4. Route Normalization
+## 4. Route Normalization
 
 The method `parseRoutesResponse()`:
 
 Transforms Google response into internal format:
 
 | Field        | Description                        |
-| ------------ | ---------------------------------- |
+|--------------|------------------------------------|
 | `routeIndex` | Index in the Google result array   |
 | `distance`   | Total distance in meters           |
 | `duration`   | Travel time in seconds             |
@@ -118,7 +117,7 @@ Example:
 
 ---
 
-# 5. Country Detection from Polyline
+## 5. Country Detection from Polyline
 
 One of the most important backend features.
 
@@ -140,7 +139,7 @@ remove duplicates + preserve order
 
 RouteService samples coordinates to avoid excessive API calls:
 
-* Long polylines → 1 point every N-th entry
+* Long polylines → 1 point every 200th entry
 * Ensures accurate but cost-efficient country detection
 
 ### 5.3 Reverse geocoding
@@ -161,7 +160,7 @@ Returned codes are always ISO2 (e.g., `DE`, `PL`).
 
 ---
 
-# 6. Caching Layer
+## 6. Caching Layer
 
 Caching prevents repetitive Google API calls for the same route.
 
@@ -172,11 +171,10 @@ Caching prevents repetitive Google API calls for the same route.
 Fields stored:
 
 | Field       | Description                               |
-| ----------- | ----------------------------------------- |
+|-------------|-------------------------------------------|
 | `hash`      | SHA-256(origin + destination + waypoints) |
-| `routes`    | Parsed routes array                       |
-| `countries` | Full ordered country list                 |
-| `createdAt` | For TTL eviction                          |
+| `data`      | Parsed routes data (includes countries)   |
+| `updatedAt` | For TTL eviction                          |
 
 TTL ≈ **60 days**.
 
@@ -199,7 +197,7 @@ Caching dramatically reduces Google billing.
 
 ---
 
-# 7. Polyline Handling
+## 7. Polyline Handling
 
 ### 7.1 Decoding
 
@@ -222,7 +220,7 @@ The polyline is decoded using the official Google polyline algorithm into an arr
 
 ---
 
-# 8. Alternative Routes Support
+## 8. Alternative Routes Support
 
 If Google returns multiple routes:
 
@@ -236,10 +234,10 @@ If Google returns multiple routes:
 
 ---
 
-# 9. Error Handling
+## 9. Error Handling
 
 | Error                    | Behavior                       |
-| ------------------------ | ------------------------------ |
+|--------------------------|--------------------------------|
 | Google API failure       | Return 500 to client           |
 | No routes found          | Error thrown from routeService |
 | Missing polyline         | Skip country detection         |
@@ -249,7 +247,7 @@ Errors never break the cost engine.
 
 ---
 
-# 10. Summary
+## 10. Summary
 
 The Route Engine provides:
 
@@ -260,4 +258,3 @@ The Route Engine provides:
 * Clean separation between route retrieval and cost calculation
 
 It is one of the core subsystems powering the Vicatomaps navigation and cost estimation workflow.
-

@@ -24,7 +24,7 @@ class VehicleService {
             const vehicle = await Vehicle.findById(vehicleId).lean();
 
             if (!vehicle) {
-                console.error(`Vehicle not found with ID: ${vehicleId}`);
+                console.log(`Vehicle not found with ID: ${vehicleId}`);
                 return null;
             }
 
@@ -112,17 +112,26 @@ class VehicleService {
                 consumption: 18,
                 tankSize: 60,
                 description: 'Zero emissions electric vehicle'
+            },
+            {
+                name: 'Sedan (LPG)',
+                fuelType: 'lpg',
+                consumption: 8.5,
+                tankSize: 50,
+                description: 'LPG-powered vehicle, lower fuel costs'
             }
         ];
 
         try {
-            for (const vehicleData of defaultVehicles) {
-                await Vehicle.findOneAndUpdate(
-                    { name: vehicleData.name },
-                    vehicleData,
-                    { upsert: true, new: true }
-                );
-            }
+            await Vehicle.bulkWrite(
+                defaultVehicles.map(vehicleData => ({
+                    updateOne: {
+                        filter: { name: vehicleData.name },
+                        update: { $set: vehicleData },
+                        upsert: true
+                    }
+                }))
+            );
             console.log('Default vehicles initialized');
         } catch (error) {
             console.error('Error initializing default vehicles:', error.message);

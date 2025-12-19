@@ -1,3 +1,7 @@
+// TODO - UNUSED: This model is not imported anywhere in the codebase.
+//                UserTrip.js is used instead (simpler schema).
+//                Consider removing this file or merging useful features into UserTrip.
+
 // src/models/Trip.js
 const mongoose = require('mongoose');
 
@@ -24,7 +28,7 @@ const countryBreakdownSchema = new mongoose.Schema({
 }, { _id: false });
 
 const tripSchema = new mongoose.Schema({
-    // Власник поїздки
+    // Trip owner
     userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -32,14 +36,14 @@ const tripSchema = new mongoose.Schema({
         index: true
     },
 
-    // Машина
+    // Vehicle
     vehicleId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Vehicle',
         required: true
     },
 
-    // Маршрут
+    // Route
     origin: {
         type: locationSchema,
         required: true
@@ -52,23 +56,23 @@ const tripSchema = new mongoose.Schema({
 
     waypoints: [locationSchema],
 
-    // Параметри маршруту
+    // Route parameters
     distance: {
-        type: Number, // meters
+        type: Number,  // meters
         required: true
     },
 
     duration: {
-        type: Number, // seconds
+        type: Number,  // seconds
         required: true
     },
 
-    // Країни на маршруті
+    // Countries on route
     countries: [{
         type: String
     }],
 
-    // Вартість палива
+    // Fuel cost
     fuelCost: {
         total: {
             type: Number,
@@ -81,32 +85,25 @@ const tripSchema = new mongoose.Schema({
         breakdown: [countryBreakdownSchema]
     },
 
-    // Вартість платних доріг
+    // Toll cost
     tollCost: {
         type: Number,
         default: 0
     },
 
-    // Загальна вартість
+    // Total cost
     totalCost: {
         type: Number,
         required: true
     },
 
-    // Валюта
+    // Currency
     currency: {
         type: String,
         default: 'EUR'
     },
 
-    // Метадані
-    createdAt: {
-        type: Date,
-        default: Date.now,
-        index: true
-    },
-
-    // Для майбутніх фіч
+    // TODO - UNUSED: For future features
     notes: {
         type: String
     },
@@ -116,18 +113,19 @@ const tripSchema = new mongoose.Schema({
         default: false
     },
 
+    // If user enters actual cost after trip
     actualCost: {
-        type: Number // якщо користувач введе реальну вартість після поїздки
+        type: Number
     }
 }, {
     timestamps: true
 });
 
-// Індекси
+// Indexes for fast lookup
 tripSchema.index({ userId: 1, createdAt: -1 });
 tripSchema.index({ userId: 1, isFavorite: 1 });
 
-// Віртуальні поля
+// Virtual fields
 tripSchema.virtual('distanceKm').get(function() {
     return (this.distance / 1000).toFixed(2);
 });
@@ -136,7 +134,7 @@ tripSchema.virtual('durationHours').get(function() {
     return (this.duration / 3600).toFixed(2);
 });
 
-// Методи
+// Methods
 tripSchema.methods.toSummary = function() {
     return {
         id: this._id,

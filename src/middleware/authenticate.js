@@ -3,12 +3,12 @@ const { verifyIdToken } = require('../config/firebase');
 const User = require('../models/User');
 
 /**
- * Middleware для верифікації Firebase токена
- * Додає req.user з інформацією про користувача
+ * Middleware for Firebase token verification
+ * Attaches req.user with user information
  */
 const authenticate = async (req, res, next) => {
     try {
-        // Отримати токен з headers
+        // Get token from headers
         const authHeader = req.headers.authorization;
 
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -18,7 +18,7 @@ const authenticate = async (req, res, next) => {
             });
         }
 
-        // Витягти токен
+        // Extract token
         const idToken = authHeader.split('Bearer ')[1];
 
         if (!idToken) {
@@ -28,10 +28,10 @@ const authenticate = async (req, res, next) => {
             });
         }
 
-        // Verify токен з Firebase
+        // Verify token with Firebase
         const decodedToken = await verifyIdToken(idToken);
 
-        // Знайти користувача в MongoDB
+        // Find user in MongoDB
         const user = await User.findOne({ firebaseUid: decodedToken.uid });
 
         if (!user) {
@@ -41,12 +41,11 @@ const authenticate = async (req, res, next) => {
             });
         }
 
-        // Оновити lastLogin
         user.updateLastLogin().catch(err =>
             console.error('Failed to update lastLogin:', err)
         );
 
-        // Додати user та decoded token в request
+        // Add user and decoded token to request
         req.user = user;
         req.firebaseUser = decodedToken;
 
@@ -54,7 +53,10 @@ const authenticate = async (req, res, next) => {
     } catch (error) {
         console.error('Authentication error:', error);
 
-        if (error.message.includes('expired')) {
+        // Firebase Admin SDK error codes
+        const code = error.code || '';
+
+        if (code === 'auth/id-token-expired') {
             return res.status(401).json({
                 success: false,
                 error: 'Token expired',
@@ -62,7 +64,7 @@ const authenticate = async (req, res, next) => {
             });
         }
 
-        if (error.message.includes('Invalid')) {
+        if (code === 'auth/invalid-id-token' || code === 'auth/invalid-argument') {
             return res.status(401).json({
                 success: false,
                 error: 'Invalid token',
@@ -78,15 +80,17 @@ const authenticate = async (req, res, next) => {
 };
 
 /**
- * Optional authentication - не блокує якщо немає токена
- * Корисно для endpoints що працюють і для гостей і для залогінених
+ * Optional authentication - does not block if no token
+ * Useful for endpoints that work for both guests and logged-in users
  */
 const optionalAuth = async (req, res, next) => {
+    req.user = null;
+    req.firebaseUser = null;
+
     try {
         const authHeader = req.headers.authorization;
 
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            req.user = null;
             return next();
         }
 
@@ -99,8 +103,7 @@ const optionalAuth = async (req, res, next) => {
 
         next();
     } catch (error) {
-        // При помилці просто ставимо user як null
-        req.user = null;
+        console.warn('Optional auth failed:', error.message);
         next();
     }
 };
