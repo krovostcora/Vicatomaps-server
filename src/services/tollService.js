@@ -1,5 +1,5 @@
 // services/tollService.js
-const tollGuruService = require ('./tollGuruService.js');
+const tollGuruService = require('./tollGuruService.js');
 
 class TollService {
     /**
@@ -15,15 +15,15 @@ class TollService {
                 const tollGuruData = await tollGuruService.getTollCosts(route.polyline);
 
                 if (tollGuruData && tollGuruData.total > 0) {
-                    console.log('✅ Using TollGuru data');
+                    console.log('Using TollGuru data');
                     return tollGuruData;
                 }
             } else {
                 if (!route.polyline) {
-                    console.log('⚠️ No polyline available for TollGuru');
+                    console.warn('No polyline available for TollGuru');
                 }
                 if (!tollGuruService.isConfigured()) {
-                    console.log('⚠️ TollGuru API key not configured');
+                    console.warn('TollGuru API key not configured');
                 }
             }
 
@@ -31,14 +31,14 @@ class TollService {
             const routeTollInfo = route.travelAdvisory?.tollInfo || route.tollInfo || {};
 
             if (routeTollInfo.estimatedPrice && routeTollInfo.estimatedPrice.length > 0) {
-                console.log('✅ Using Google toll data');
+                console.log('Using Google toll data');
                 return this.parseGoogleTollInfo(routeTollInfo);
             }
 
             // Step 3: Check leg-level toll info
             let legTollInfo = [];
             if (route.legs && Array.isArray(route.legs)) {
-                route.legs.forEach((leg, index) => {
+                route.legs.forEach(leg => {
                     if (leg.travelAdvisory?.tollInfo?.estimatedPrice) {
                         legTollInfo.push(leg.travelAdvisory.tollInfo);
                     }
@@ -46,24 +46,24 @@ class TollService {
             }
 
             if (legTollInfo.length > 0) {
-                console.log('✅ Using Google leg-level toll data');
+                console.log('Using Google leg-level toll data');
                 return this.parseGoogleTollInfoFromLegs(legTollInfo);
             }
 
             // Step 4: Fallback to our estimates based on countries
-            console.log('⚠️ Using estimated tolls (no API data available)');
+            console.warn('Using estimated tolls (no API data available)');
 
             const countries = route.countries || [];
 
             if (countries.length === 0) {
-                console.log('No countries detected, returning zero tolls');
+                console.warn('No countries detected, returning zero tolls');
                 return { total: 0, breakdown: [], source: 'none' };
             }
 
             const breakdown = this.calculateTollBreakdown(route, []);
             const total = breakdown.reduce((sum, toll) => sum + toll.cost, 0);
 
-            console.log(`Estimated total: €${total.toFixed(2)}`);
+            console.log(`Estimated total: ${total.toFixed(2)} EUR`);
             console.log('=== TOLL CALCULATION END ===\n');
 
             return {
@@ -186,7 +186,7 @@ class TollService {
         const breakdown = [];
 
         if (countries.length === 0) {
-            console.log('No countries, returning empty breakdown');
+            console.warn('No countries, returning empty breakdown');
             return breakdown;
         }
 
@@ -231,7 +231,7 @@ class TollService {
             // France - expensive tolls
             'FR': {
                 type: 'distance-based',
-                ratePerKm: 0.10, // €0.10/km average on French autoroutes
+                ratePerKm: 0.10,  // 0.10 EUR/km average on French autoroutes
                 vignette: 0,
                 description: 'French motorway tolls (péages)'
             },
@@ -260,36 +260,36 @@ class TollService {
             'AT': {
                 type: 'vignette',
                 ratePerKm: 0,
-                vignette: 9.60, // 10-day vignette
-                description: 'Austrian vignette (10 days) - €9.60'
+                vignette: 9.60,  // 10-day vignette
+                description: 'Austrian vignette (10 days) - 9.60 EUR'
             },
             // Switzerland - annual vignette
             'CH': {
                 type: 'vignette',
                 ratePerKm: 0,
-                vignette: 40.00, // Annual vignette (mandatory)
-                description: 'Swiss vignette (annual) - CHF 40 (~€40)'
+                vignette: 40.00,  // annual vignette (mandatory)
+                description: 'Swiss vignette (annual) - CHF 40 (~40 EUR)'
             },
             // Czech Republic - vignette
             'CZ': {
                 type: 'vignette',
                 ratePerKm: 0,
-                vignette: 8.50, // 210 CZK for 1 day ≈ €8.50
-                description: 'Czech vignette (1 day) - 210 CZK (~€8.50)'
+                vignette: 8.50,  // 210 CZK for 1 day ≈ 8.50 EUR
+                description: 'Czech vignette (1 day) - 210 CZK (~8.50 EUR)'
             },
             // Slovakia - vignette
             'SK': {
                 type: 'vignette',
                 ratePerKm: 0,
                 vignette: 10.00, // 10-day vignette
-                description: 'Slovak vignette (10 days) - €10'
+                description: 'Slovak vignette (10 days) - 10 EUR'
             },
             // Slovenia - vignette
             'SI': {
                 type: 'vignette',
                 ratePerKm: 0,
                 vignette: 15.00, // Weekly vignette
-                description: 'Slovenian vignette (weekly) - €15'
+                description: 'Slovenian vignette (weekly) - 15 EUR'
             },
             // Poland
             'PL': {

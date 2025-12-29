@@ -1,16 +1,16 @@
-# **Toll System**
+# Toll System
 
 This document describes the toll computation subsystem used in the Vicatomaps backend.
 The system aggregates toll data from multiple sources, applies caching, and provides a unified toll cost calculation for each route.
 
 ---
 
-# **1. Overview**
+## 1. Overview
 
 The toll subsystem uses a **hierarchical multi-source architecture**:
 
 | Priority | Source                             | Description                    |
-| -------- | ---------------------------------- | ------------------------------ |
+|----------|------------------------------------|--------------------------------|
 | **1**    | TollGuru API                       | Primary external toll source   |
 | **2**    | Google Routes API (estimatedPrice) | Toll estimates when available  |
 | **3**    | Google leg-level tollInfo          | Per-segment advisory           |
@@ -20,10 +20,10 @@ All toll results are normalized into EUR and cached for performance.
 
 ---
 
-# **2. Components**
+## 2. Components
 
 | File                  | Responsibility                                       |
-| --------------------- | ---------------------------------------------------- |
+|-----------------------|------------------------------------------------------|
 | `tollService.js`      | Main orchestrator, fallback logic, breakdown merging |
 | `tollGuruService.js`  | TollGuru API client + caching                        |
 | `GoogleRouteCache.js` | May contain Google tollInfo parsed from routeService |
@@ -31,7 +31,7 @@ All toll results are normalized into EUR and cached for performance.
 
 ---
 
-# **3. Toll Calculation Flow**
+## 3. Toll Calculation Flow
 
 Below is the exact flow implemented in `tollService.js`:
 
@@ -52,22 +52,21 @@ return { total, breakdown, source }
 
 ---
 
-# **4. TollGuru API Integration**
+## 4. TollGuru API Integration
 
 Source: `tollGuruService.js`
 
-
-### **4.1 When TollGuru is used**
+### 4.1 When TollGuru is used
 
 * A valid `TOLLGURU_API_KEY` exists
 * The route contains a polyline
 * No valid cached result exists (or TTL expired)
 
-### **4.2 Request**
+### 4.2 Request
 
 The service sends the polyline encoded in Google format.
 
-### **4.3 Caching**
+### 4.3 Caching
 
 Cache key:
 
@@ -77,7 +76,7 @@ hash = SHA256(polyline)
 
 Stored in `TollCache` with TTL ≈ **6 months**.
 
-### **4.4 Response Normalization**
+### 4.4 Response Normalization
 
 * Extract toll cost
 * Convert all prices to **EUR**
@@ -97,12 +96,11 @@ Stored in `TollCache` with TTL ≈ **6 months**.
 
 ---
 
-# **5. Google Estimated Toll Price**
+## 5. Google Estimated Toll Price
 
 If TollGuru is unavailable or returns an error, the system attempts Google's own aggregated toll estimate.
 
 Source: parsed in `routeService.js`
-
 
 ### Format:
 
@@ -123,12 +121,12 @@ price = units + nanos / 1e9
 If present, this source is marked:
 
 ```
-source: "google_estimated"
+source: "google"
 ```
 
 ---
 
-# **6. Google Leg-Level TollInfo**
+## 6. Google Leg-Level TollInfo
 
 If aggregated estimated price is missing, Vicatomaps looks for tolls per leg:
 
@@ -145,12 +143,12 @@ Typical usage:
 Marked as:
 
 ```
-source: "google_legs"
+source: "google"
 ```
 
 ---
 
-# **7. EU Fallback Toll Model**
+## 7. EU Fallback Toll Model
 
 When neither TollGuru nor Google provides toll data, the system applies a deterministic estimation model.
 Implemented in: `tollService.js`
@@ -159,15 +157,19 @@ Implemented in: `tollService.js`
 ### Country rules:
 
 | Country              | Type           | Rule            |
-| -------------------- | -------------- | --------------- |
+|----------------------|----------------|-----------------|
 | **France (FR)**      | distance-based | €0.10 per km    |
 | **Italy (IT)**       | distance-based | €0.07 per km    |
 | **Spain (ES)**       | distance-based | €0.09 per km    |
 | **Austria (AT)**     | vignette       | €9.60 fixed     |
 | **Switzerland (CH)** | vignette       | €40/year        |
-| **Slovakia (SK)**    | vignette       | €12.50 (10-day) |
-| **Slovenia (SI)**    | vignette       | €16.00 (week)   |
-| **Czechia (CZ)**     | vignette       | €12.00 (10-day) |
+| **Slovakia (SK)**    | vignette       | €10.00 (10-day) |
+| **Slovenia (SI)**    | vignette       | €15.00 (weekly) |
+| **Czechia (CZ)**     | vignette       | €8.50 (1-day)   |
+| **Portugal (PT)**    | distance-based | €0.10 per km    |
+| **Poland (PL)**      | distance-based | €0.05 per km    |
+| **Croatia (HR)**     | distance-based | €0.06 per km    |
+| **Greece (GR)**      | distance-based | €0.07 per km    |
 | **Germany, NL, BE**  | free           | €0              |
 
 ### Behavior:
@@ -183,7 +185,7 @@ Implemented in: `tollService.js`
 Source marked:
 
 ```
-source: "fallback_model"
+source: "estimated"
 ```
 
 Breakdown example:
@@ -198,7 +200,7 @@ Breakdown example:
 
 ---
 
-# **8. Toll Breakdown Format**
+## 8. Toll Breakdown Format
 
 Every toll result is normalized to:
 
@@ -227,10 +229,10 @@ Final combined result example:
 
 ---
 
-# **9. Error Handling**
+## 9. Error Handling
 
 | Error                        | Behavior                       |
-| ---------------------------- | ------------------------------ |
+|------------------------------|--------------------------------|
 | TollGuru API timeout         | Skip to Google estimated price |
 | No Google tollInfo           | Skip to fallback model         |
 | Missing distance per country | Assume equal distribution      |
@@ -240,7 +242,7 @@ The system **always returns a toll structure**, even with limited data.
 
 ---
 
-# **10. Summary**
+## 10. Summary
 
 The toll subsystem is designed to be:
 
@@ -251,4 +253,3 @@ The toll subsystem is designed to be:
 * **Deterministic**: always returns a valid toll cost
 
 This makes it reliable even for long multi-country European routes.
-

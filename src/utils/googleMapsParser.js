@@ -3,28 +3,28 @@ const axios = require('axios');
 
 class GoogleMapsParser {
     /**
-     * Парсить Google Maps URL і витягує origin, destination, waypoints
-     * Підтримує формати:
+     * Parses Google Maps URL and extracts origin, destination, waypoints
+     * Supported formats:
      * - Short URLs: https://maps.app.goo.gl/xxx
      * - Full URLs: https://www.google.com/maps/dir/54.6872,25.2797/54.8978,23.9094/
-     * - URLs з місцями: https://www.google.com/maps/dir/Vilnius/Kaunas/
+     * - URLs with places: https://www.google.com/maps/dir/Vilnius/Kaunas/
      */
     async parseGoogleMapsUrl(url) {
         try {
             console.log('Parsing Google Maps URL:', url);
 
-            // Очистити URL від зайвих параметрів (g_st, g_ep тощо)
-            let cleanUrl = url.split('?')[0]; // Видалити все після ?
+            // Clean URL without extra parameters (g_st, g_ep, etc.)
+            let cleanUrl = url.split('?')[0];  // remove everything after ?
             console.log('Cleaned URL:', cleanUrl);
 
-            // Якщо це short URL - розгорнути його
+            // If this is a short URL - expand it
             let fullUrl = cleanUrl;
             if (cleanUrl.includes('maps.app.goo.gl') || cleanUrl.includes('goo.gl')) {
                 fullUrl = await this.expandShortUrl(cleanUrl);
                 console.log('Expanded URL:', fullUrl);
             }
 
-            // Парсити повний URL
+            // Parse full URL
             const result = this.parseFullUrl(fullUrl);
             
             if (!result.origin || !result.destination) {
@@ -41,7 +41,7 @@ class GoogleMapsParser {
     }
 
     /**
-     * Розгортає short URL в повний через HTTP redirect
+     * Expands short URL to full URL via HTTP redirect
      */
     async expandShortUrl(shortUrl) {
         try {
@@ -58,13 +58,13 @@ class GoogleMapsParser {
             return location;
 
         } catch (error) {
-            // Якщо axios автоматично перейшов за редіректом
+            // If axios automatically followed the redirect
             if (error.response && error.response.request) {
                 const finalUrl = error.response.request.res.responseUrl;
                 if (finalUrl) return finalUrl;
             }
 
-            // Альтернативний спосіб - просто робимо запит і дивимось куди перенаправило
+            // Alternative approach - just make a request and see where it redirects
             try {
                 const response = await axios.get(shortUrl, {
                     maxRedirects: 5
@@ -77,11 +77,11 @@ class GoogleMapsParser {
     }
 
     /**
-     * Парсить повний Google Maps URL
-     * Приклади форматів:
+     * Parses full Google Maps URL
+     * Example formats:
      * - /dir/54.6872,25.2797/54.8978,23.9094/
      * - /dir/Vilnius/Kaunas/
-     * - /?daddr=Kaunas&saddr=Vilnius (старий формат з мобільного)
+     * - /?daddr=Kaunas&saddr=Vilnius (old mobile format)
      * - /dir/Ljubljana,+Slovenia/Lviv,+Ukraine/@47.9,13.9,6z/data=...
      */
     parseFullUrl(url) {
@@ -93,19 +93,19 @@ class GoogleMapsParser {
             console.log('Parsing pathname:', pathname);
             console.log('Search params:', [...searchParams.entries()]);
 
-            // ФОРМАТ 1: Старий формат з query параметрами (?daddr=...&saddr=...)
+            // FORMAT 1: Old format with query parameters (?daddr=...&saddr=...)
             if (searchParams.has('daddr') || searchParams.has('saddr')) {
                 console.log('Detected old query-based format');
                 return this.parseQueryBasedUrl(searchParams);
             }
 
-            // ФОРМАТ 2: Data параметр (encoded route info)
+            // FORMAT 2: Data parameter (encoded route info)
             const dataMatch = url.match(/data=([^&]+)/);
             if (dataMatch) {
                 try {
                     const coordinates = this.parseDataParameter(dataMatch[1]);
                     if (coordinates) {
-                        console.log('✅ Parsed from data parameter:', coordinates);
+                        console.log('Parsed from data parameter:', coordinates);
                         return coordinates;
                     }
                 } catch (e) {
@@ -113,7 +113,7 @@ class GoogleMapsParser {
                 }
             }
 
-            // ФОРМАТ 3: Path-based (/dir/...)
+            // FORMAT 3: Path-based (/dir/...)
             const dirMatch = pathname.match(/\/dir\/([^/]+)(?:\/([^/?]+))?(?:\/([^/@?]+))?/);
             
             if (!dirMatch) {
@@ -123,7 +123,7 @@ class GoogleMapsParser {
             let points = [dirMatch[1], dirMatch[2], dirMatch[3]]
                 .filter(Boolean)
                 .filter(p => {
-                    // Фільтруємо viewport/zoom параметри (починаються з @)
+                    // Filter out viewport/zoom parameters (start with @)
                     if (p.startsWith('@')) {
                         console.log('Skipping viewport parameter:', p);
                         return false;
@@ -143,7 +143,7 @@ class GoogleMapsParser {
                 waypoints: []
             };
 
-            // Якщо є проміжні точки (waypoints)
+            // If there are intermediate points (waypoints)
             if (points.length > 2) {
                 result.waypoints = points.slice(1, -1).map(point => this.parsePoint(point));
             }
@@ -157,16 +157,16 @@ class GoogleMapsParser {
     }
 
     /**
-     * Парсить старий формат Google Maps з query параметрами
-     * Формат: ?daddr=Kaunas&saddr=Vilnius або ?daddr=54.89,23.90&saddr=54.68,25.27
+     * Parses old Google Maps format with query parameters
+     * Format: ?daddr=Kaunas&saddr=Vilnius or ?daddr=54.89,23.90&saddr=54.68,25.27
      */
     parseQueryBasedUrl(searchParams) {
         const daddr = searchParams.get('daddr');
         const saddr = searchParams.get('saddr');
 
         console.log('Parsing query-based URL:');
-        console.log('  saddr (origin):', saddr);
-        console.log('  daddr (destination):', daddr);
+        console.log('\tsaddr (origin):', saddr);
+        console.log('\tdaddr (destination):', daddr);
 
         if (!saddr || !daddr) {
             throw new Error('Missing saddr or daddr in URL');
@@ -178,17 +178,17 @@ class GoogleMapsParser {
             waypoints: []
         };
 
-        console.log('✅ Parsed query-based URL:', result);
+        console.log('Parsed query-based URL:', result);
         return result;
     }
 
     /**
-     * Парсить data= параметр з Google Maps URL
-     * Витягує координати з encoded data
+     * Parses data= parameter from Google Maps URL
+     * Extracts coordinates from encoded data
      */
     parseDataParameter(dataParam) {
         try {
-            // Шукаємо координати в форматі !2d<lon>!2d<lat>
+            // Search for coordinates in format !2d<lon>!2d<lat>
             const coordRegex = /!2d(-?\d+\.?\d*)!2d(-?\d+\.?\d*)/g;
             const matches = [...dataParam.matchAll(coordRegex)];
             
@@ -196,7 +196,7 @@ class GoogleMapsParser {
                 return null;
             }
 
-            // Перший матч - origin, останній - destination
+            // First match - origin, last - destination
             const origin = {
                 lat: parseFloat(matches[0][2]),
                 lon: parseFloat(matches[0][1])
@@ -213,7 +213,7 @@ class GoogleMapsParser {
                 waypoints: []
             };
 
-            // Якщо є проміжні точки
+            // If there are intermediate points
             if (matches.length > 2) {
                 result.waypoints = matches.slice(1, -1).map(m => ({
                     lat: parseFloat(m[2]),
@@ -230,20 +230,20 @@ class GoogleMapsParser {
     }
 
     /**
-     * Парсить одну точку (координати або назву місця)
-     * Формати:
+     * Parses a single point (coordinates or place name)
+     * Formats:
      * - "54.6872,25.2797" -> { lat, lon }
      * - "Vilnius" -> { name: "Vilnius" }
      * - "Vilnius+City+Municipality" -> { name: "Vilnius City Municipality" }
      */
     parsePoint(pointString) {
-        // Видалити зайві пробіли та decode URL encoding
+        // Remove extra whitespace and decode URL encoding
         const decoded = decodeURIComponent(pointString.trim())
-            .replace(/\+/g, ' '); // Замінити + на пробіли
+            .replace(/\+/g, ' ');  // replace + with spaces
         
         console.log(`Parsing point: "${pointString}" -> "${decoded}"`);
-        
-        // Спроба розпарсити як координати
+
+        // Try to parse as coordinates
         const coordMatch = decoded.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
         
         if (coordMatch) {
@@ -251,19 +251,19 @@ class GoogleMapsParser {
                 lat: parseFloat(coordMatch[1]),
                 lon: parseFloat(coordMatch[2])
             };
-            console.log(`  ✅ Parsed as coordinates:`, result);
+            console.log('\tParsed as coordinates:', result);
             return result;
         }
 
-        // Якщо це не координати - це назва місця
+        // If not coordinates then it's a place name
         const result = { name: decoded };
-        console.log(`  ✅ Parsed as place name:`, result);
+        console.log('\tParsed as place name:', result);
         return result;
     }
 
     /**
-     * Перевіряє чи всі точки мають координати
-     * Якщо ні - потрібно геокодувати
+     * Checks if all points have coordinates
+     * If not - geocoding is needed
      */
     needsGeocoding(parsedResult) {
         const allPoints = [
@@ -276,8 +276,8 @@ class GoogleMapsParser {
     }
 
     /**
-     * Геокодує назву місця в координати через Google Geocoding API
-     * Використовує GOOGLE_ROUTES_API_KEY (той самий ключ для всіх Google APIs)
+     * Geocodes place name to coordinates via Google Geocoding API
+     * Uses GOOGLE_ROUTES_API_KEY (same key for all Google APIs)
      */
     async geocodePlace(placeName) {
         const apiKey = process.env.GOOGLE_ROUTES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
@@ -308,7 +308,7 @@ class GoogleMapsParser {
                 lon: location.lng
             };
 
-            console.log(`✅ Geocoded ${placeName} -> ${result.lat}, ${result.lon}`);
+            console.log(`Geocoded ${placeName} -> ${result.lat}, ${result.lon}`);
             return result;
 
         } catch (error) {
@@ -318,31 +318,31 @@ class GoogleMapsParser {
     }
 
     /**
-     * Обробляє весь парсинг + геокодування якщо потрібно
+     * Handles full parsing + geocoding if needed
      */
     async parseAndGeocode(url) {
         const parsed = await this.parseGoogleMapsUrl(url);
 
-        // Перевірити чи потрібно геокодувати
+        // Check if geocoding is needed
         if (!this.needsGeocoding(parsed)) {
             return parsed;
         }
 
         console.log('Some points need geocoding...');
 
-        // Геокодувати origin
+        // Geocode origin
         if (parsed.origin.name && !parsed.origin.lat) {
             const coords = await this.geocodePlace(parsed.origin.name);
             parsed.origin = { ...coords, originalName: parsed.origin.name };
         }
 
-        // Геокодувати destination
+        // Geocode destination
         if (parsed.destination.name && !parsed.destination.lat) {
             const coords = await this.geocodePlace(parsed.destination.name);
             parsed.destination = { ...coords, originalName: parsed.destination.name };
         }
 
-        // Геокодувати waypoints
+        // Geocode waypoints
         if (parsed.waypoints && parsed.waypoints.length > 0) {
             parsed.waypoints = await Promise.all(
                 parsed.waypoints.map(async (wp) => {

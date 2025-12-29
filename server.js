@@ -6,7 +6,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
 const { connectDB } = require('./src/config/database');
-const { initializeFirebase } = require('./src/config/firebase');
+const { ensureFirebaseInitialized } = require('./src/config/firebase');
 
 // Import routes
 const authRoutes = require('./src/routes/auth');
@@ -29,7 +29,7 @@ const PORT = process.env.PORT || 3000;
 connectDB();
 
 // Initialize Firebase Admin SDK
-initializeFirebase();
+ensureFirebaseInitialized();
 
 // Security middleware
 app.use(helmet());
@@ -98,11 +98,11 @@ app.use((req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-    console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log('GOOGLE_ROUTES_API_KEY:', process.env.GOOGLE_ROUTES_API_KEY ? '✅ Loaded' : '❌ Missing');
-    console.log('TOLLGURU_API_KEY:', process.env.TOLLGURU_API_KEY ? '✅ Loaded' : '❌ Missing');
-    console.log('🔥 Firebase initialized');
+    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log('GOOGLE_ROUTES_API_KEY:', process.env.GOOGLE_ROUTES_API_KEY ? 'Loaded' : 'Missing');
+    console.log('TOLLGURU_API_KEY:', process.env.TOLLGURU_API_KEY ? 'Loaded' : 'Missing');
+    console.log('Firebase initialized');
 });
 
 module.exports = app;

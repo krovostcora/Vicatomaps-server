@@ -1,8 +1,10 @@
+// TODO - SECURITY: No authentication on any endpoint - anyone can read/write/delete ALL trips
+// src/routes/trips.js
 const express = require('express');
 const router = express.Router();
 const UserTrip = require('../models/UserTrip');
 
-// GET /api/trips - Отримати всі поїздки
+// GET /api/trips - Get all trips
 router.get('/', async (req, res) => {
     try {
         const trips = await UserTrip.find()
@@ -16,7 +18,7 @@ router.get('/', async (req, res) => {
     }
 });
 
-// GET /api/trips/:id - Отримати одну поїздку за ID
+// GET /api/trips/:id - Get single trip by ID
 router.get('/:id', async (req, res) => {
     try {
         const trip = await UserTrip.findById(req.params.id)
@@ -33,7 +35,7 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// POST /api/trips - Створити нову поїздку
+// POST /api/trips - Create new trip
 router.post('/', async (req, res) => {
     try {
         const trip = await UserTrip.create(req.body);
@@ -44,7 +46,7 @@ router.post('/', async (req, res) => {
     }
 });
 
-// DELETE /api/trips/:id - Видалити поїздку
+// DELETE /api/trips/:id - Delete trip
 router.delete('/:id', async (req, res) => {
     try {
         const trip = await UserTrip.findByIdAndDelete(req.params.id);

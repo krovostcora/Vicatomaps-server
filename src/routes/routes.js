@@ -2,7 +2,6 @@
 const express = require('express');
 const router = express.Router();
 const { optionalAuth, authenticate } = require('../middleware/authenticate');
-const routeService = require('../services/routeService');
 const costService = require('../services/costService');
 const UserTrip = require('../models/UserTrip');
 const googleMapsParser = require('../utils/googleMapsParser');
@@ -28,12 +27,12 @@ router.post('/calculate', optionalAuth, async (req, res) => {
             waypoints
         );
 
-        // Якщо користувач залогінений - зберегти trip
+        // If user is logged in - save trip
         if (req.user) {
             try {
                 const trip = new UserTrip({
                     userId: req.user._id,
-                    vehicle: vehicleId, // ✅ ВИПРАВЛЕНО: vehicle замість vehicleId
+                    vehicle: vehicleId,
                     origin: result.route?.origin || 'Unknown',
                     destination: result.route?.destination || 'Unknown',
                     originCoords: {
@@ -45,13 +44,12 @@ router.post('/calculate', optionalAuth, async (req, res) => {
                         lon: destination.lon
                     },
                     waypoints: waypoints?.map(wp => wp.name || `${wp.lat},${wp.lon}`) || [],
-                    totalDistance: result.route?.distance || 0, // ✅ ВИПРАВЛЕНО: totalDistance
+                    totalDistance: result.route?.distance || 0,
                     duration: result.route?.duration || 0,
-                    fuelCost: result.fuelCost?.total || 0, // ✅ ВИПРАВЛЕНО: .total
-                    tollCost: result.tollCost?.total || 0, // ✅ ВИПРАВЛЕНО: .total
+                    fuelCost: result.fuelCost?.total || 0,
+                    tollCost: result.tollCost?.total || 0,
                     totalCost: result.totalCost || 0,
                     countries: result.countries || [],
-                    // ✅ ДОДАНО: зберегти breakdown
                     fuelBreakdown: result.fuelCost?.breakdown?.map(fb => ({
                         countryCode: fb.countryCode,
                         country: fb.country,
@@ -63,10 +61,10 @@ router.post('/calculate', optionalAuth, async (req, res) => {
 
                 await trip.save();
                 result.tripId = trip._id;
-                console.log('✅ Trip saved successfully:', trip._id);
+                console.log('Trip saved successfully:', trip._id);
             } catch (saveError) {
-                console.error('❌ Failed to save trip:', saveError);
-                // Не блокуємо відповідь
+                console.error('Failed to save trip:', saveError);
+                // Don't block response
             }
         }
 
@@ -97,11 +95,11 @@ router.get('/history', authenticate, async (req, res, next) => {
             .sort({ createdAt: -1 })
             .limit(parseInt(limit))
             .skip(parseInt(skip))
-            .populate('vehicle', 'name fuelType consumption'); // ✅ ВИПРАВЛЕНО: vehicle
+            .populate('vehicle', 'name fuelType consumption');
 
         const total = await UserTrip.countDocuments({ userId: req.user._id });
 
-        console.log(`📋 Found ${trips.length} trips for user ${req.user._id}`);
+        console.log(`Found ${trips.length} trips for user ${req.user._id}`);
 
         res.json({
             success: true,
@@ -128,7 +126,7 @@ router.get('/history/:tripId', authenticate, async (req, res, next) => {
         const trip = await UserTrip.findOne({
             _id: req.params.tripId,
             userId: req.user._id
-        }).populate('vehicle'); // ✅ ВИПРАВЛЕНО: vehicle
+        }).populate('vehicle');
 
         if (!trip) {
             return res.status(404).json({
@@ -215,12 +213,12 @@ router.post('/import-google', optionalAuth, async (req, res) => {
             parsed.waypoints
         );
 
-        // Якщо користувач залогінений - зберегти trip
+        // If user is logged in - save trip
         if (req.user) {
             try {
                 const trip = new UserTrip({
                     userId: req.user._id,
-                    vehicle: vehicleId, // ✅ ВИПРАВЛЕНО: vehicle
+                    vehicle: vehicleId,
                     origin: parsed.origin.originalName || result.route?.origin || 'Unknown',
                     destination: parsed.destination.originalName || result.route?.destination || 'Unknown',
                     originCoords: {
@@ -232,10 +230,10 @@ router.post('/import-google', optionalAuth, async (req, res) => {
                         lon: parsed.destination.lon
                     },
                     waypoints: parsed.waypoints?.map(wp => wp.originalName || wp.name) || [],
-                    totalDistance: result.route?.distance || 0, // ✅ ВИПРАВЛЕНО
+                    totalDistance: result.route?.distance || 0,
                     duration: result.route?.duration || 0,
-                    fuelCost: result.fuelCost?.total || 0, // ✅ ВИПРАВЛЕНО
-                    tollCost: result.tollCost?.total || 0, // ✅ ВИПРАВЛЕНО
+                    fuelCost: result.fuelCost?.total || 0,
+                    tollCost: result.tollCost?.total || 0,
                     totalCost: result.totalCost || 0,
                     countries: result.countries || [],
                     googleMapsUrl: googleMapsUrl,
@@ -250,9 +248,9 @@ router.post('/import-google', optionalAuth, async (req, res) => {
 
                 await trip.save();
                 result.tripId = trip._id;
-                console.log('✅ Trip saved successfully:', trip._id);
+                console.log('Trip saved successfully:', trip._id);
             } catch (saveError) {
-                console.error('❌ Failed to save trip:', saveError);
+                console.error('Failed to save trip:', saveError);
             }
         }
 

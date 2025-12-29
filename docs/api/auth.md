@@ -1,4 +1,4 @@
-# **Authentication Module**
+# Authentication
 
 This document describes the authentication flow and related API endpoints used in the Vicatomaps backend.
 Authentication is based on **Firebase ID tokens** and verified using the Firebase Admin SDK.
@@ -6,12 +6,12 @@ User identities and profiles are stored in MongoDB.
 
 ---
 
-# **1. Overview**
+## 1. Overview
 
 Authentication in Vicatomaps uses a hybrid model:
 
 | Component                   | Responsibility                                                 |
-| --------------------------- | -------------------------------------------------------------- |
+|-----------------------------|----------------------------------------------------------------|
 | **Firebase ID Token**       | Primary identity provider (Google, Apple, Email/Password etc.) |
 | **MongoDB User Record**     | Stores user profile, preferences, metadata                     |
 | **Backend Auth Middleware** | Verifies token, resolves user, attaches `req.user`             |
@@ -25,9 +25,9 @@ Files involved:
 
 ---
 
-# **2. Authentication Flow**
+## 2. Authentication Flow
 
-### **2.1 Login / Registration Flow**
+### 2.1 Login / Registration Flow
 
 1. Mobile app obtains Firebase ID token.
 2. Sends API request with header:
@@ -39,20 +39,20 @@ Files involved:
 4. Backend retrieves or creates MongoDB user record.
 5. Backend returns normalized user profile.
 
-### **2.2 Request Authentication**
+### 2.2 Request Authentication
 
 Requests use two modes:
 
 | Middleware     | Purpose                                        |
-| -------------- | ---------------------------------------------- |
+|----------------|------------------------------------------------|
 | `authenticate` | Token required. Rejects if invalid or missing. |
 | `optionalAuth` | Token optional. Used for guest requests.       |
 
 ---
 
-# **3. API Endpoints**
+## 3. API Endpoints
 
-## **3.1 POST /api/auth/register**
+### 3.1 POST /api/auth/register
 
 Registers a new user or updates an existing one based on Firebase UID.
 
@@ -79,7 +79,7 @@ Errors:
 
 ---
 
-## **3.2 GET /api/auth/me**
+### 3.2 GET /api/auth/me
 
 Returns the authenticated user profile.
 
@@ -100,7 +100,7 @@ Authorization: Bearer <firebase_id_token>
 
 ---
 
-## **3.3 PUT /api/auth/profile**
+### 3.3 PUT /api/auth/profile
 
 Updates display name and/or user preferences.
 
@@ -120,14 +120,14 @@ Updates display name and/or user preferences.
 
 ---
 
-## **3.4 DELETE /api/auth/account**
+### 3.4 DELETE /api/auth/account
 
 Deletes user data from MongoDB.
 Firebase account deletion must be done separately on the client side.
 
 ---
 
-## **3.5 POST /api/auth/logout**
+### 3.5 POST /api/auth/logout
 
 Stateless logout.
 Client removes token locally.
@@ -135,12 +135,12 @@ Client removes token locally.
 
 ---
 
-# **4. User Model**
+## 4. User Model
 
 Backend expects the following fields (inferred from usage):
 
 | Field                           | Type     | Description                               |
-| ------------------------------- | -------- | ----------------------------------------- |
+|---------------------------------|----------|-------------------------------------------|
 | `firebaseUid`                   | String   | Unique identifier from Firebase           |
 | `email`                         | String   | User email                                |
 | `displayName`                   | String   | User display name                         |
@@ -155,7 +155,7 @@ Backend expects the following fields (inferred from usage):
 
 ---
 
-# **5. Security Notes**
+## 5. Security Notes
 
 * Tokens are validated using Firebase Admin → prevents tampering.
 * No backend-issued tokens → no session state.
@@ -165,7 +165,7 @@ Backend expects the following fields (inferred from usage):
 
 ---
 
-# **6. Guest Mode Support**
+## 6. Guest Mode Support
 
 Routes that allow guest usage (e.g., `/api/routes/calculate`) use:
 
@@ -181,12 +181,12 @@ If no token is provided:
 
 ---
 
-# **7. Error Handling**
+## 7. Error Handling
 
 Common failures:
 
 | Error                | Cause                                  |
-| -------------------- | -------------------------------------- |
+|----------------------|----------------------------------------|
 | `TOKEN_EXPIRED`      | Firebase token expired                 |
 | `INVALID_TOKEN`      | Wrong or corrupt token                 |
 | `401 Unauthorized`   | Missing or malformed header            |
@@ -195,7 +195,7 @@ Common failures:
 
 ---
 
-# **8. Example Request**
+## 8. Example Request
 
 **Request**
 
@@ -218,4 +218,3 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6Ijk...
   }
 }
 ```
-

@@ -4,28 +4,28 @@ const path = require('path');
 
 let firebaseApp;
 
-// Ініціалізація Firebase Admin SDK
-const initializeFirebase = () => {
+// Initialize Firebase Admin SDK
+const ensureFirebaseInitialized = () => {
     if (firebaseApp) {
         return firebaseApp;
     }
 
     try {
-        // Спробувати .env змінні (для Render/production)
+        // Try .env variables (for Render/production)
         if (process.env.FIREBASE_PROJECT_ID &&
             process.env.FIREBASE_CLIENT_EMAIL &&
             process.env.FIREBASE_PRIVATE_KEY) {
 
-            console.log('🔥 Initializing Firebase from environment variables');
+            console.log('Initializing Firebase from environment variables');
 
             let privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
-            // Якщо ключ в лапках, видалити їх
+            // Remove surrounding quotes if present
             if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
                 privateKey = privateKey.slice(1, -1);
             }
 
-            // Замінити \\n на справжні переноси рядків
+            // Replace \\n with actual newlines
             privateKey = privateKey.replace(/\\n/g, '\n');
 
             firebaseApp = admin.initializeApp({
@@ -36,9 +36,9 @@ const initializeFirebase = () => {
                 })
             });
         }
-        // Fallback на файл (для локальної розробки)
+        // Fallback to file (for local development)
         else {
-            console.log('🔥 Initializing Firebase from service account file');
+            console.log('Initializing Firebase from service account file');
             const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
                 path.join(__dirname, '../../config/serviceAccountKey.json');
 
@@ -50,20 +50,18 @@ const initializeFirebase = () => {
             });
         }
 
-        console.log('✅ Firebase Admin SDK initialized');
+        console.log('Firebase Admin SDK initialized');
         return firebaseApp;
     } catch (error) {
-        console.error('❌ Firebase Admin initialization error:', error);
+        console.error('Firebase Admin initialization error:', error);
         throw error;
     }
 };
 
-// Верифікація Firebase ID токена
+// Verify Firebase ID token
 const verifyIdToken = async (idToken) => {
     try {
-        if (!firebaseApp) {
-            initializeFirebase();
-        }
+        ensureFirebaseInitialized();
         const decodedToken = await admin.auth().verifyIdToken(idToken);
         return decodedToken;
     } catch (error) {
@@ -72,12 +70,10 @@ const verifyIdToken = async (idToken) => {
     }
 };
 
-// Отримати користувача з Firebase
+// Get user from Firebase
 const getFirebaseUser = async (uid) => {
     try {
-        if (!firebaseApp) {
-            initializeFirebase();
-        }
+        ensureFirebaseInitialized();
         const userRecord = await admin.auth().getUser(uid);
         return userRecord;
     } catch (error) {
@@ -87,7 +83,7 @@ const getFirebaseUser = async (uid) => {
 };
 
 module.exports = {
-    initializeFirebase,
+    ensureFirebaseInitialized,
     verifyIdToken,
     getFirebaseUser,
     admin

@@ -11,7 +11,7 @@ const vehicleSchema = new mongoose.Schema({
     fuelType: {
         type: String,
         required: true,
-        enum: ['petrol', 'diesel', 'electric'],
+        enum: ['petrol', 'diesel', 'electric', 'lpg'],
         lowercase: true
     },
     consumption: {

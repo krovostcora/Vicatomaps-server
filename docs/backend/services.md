@@ -1,4 +1,4 @@
-# **Backend Services Overview**
+# Backend Services
 
 This document describes all backend service modules in the Vicatomaps system.
 Each service encapsulates a specific domain: routing, toll calculation, fuel price retrieval, vehicle management, and cost processing.
@@ -6,19 +6,18 @@ All services are stateless, modular, and designed for high reusability across ro
 
 ---
 
-# **1. Route Service**
+## 1. Route Service
 
 Source: `routeService.js`
 
-
-### **Purpose**
+### Purpose
 
 Handles all communication with **Google Routes API** and performs route normalization, country detection, and caching.
 
-### **Responsibilities**
+### Responsibilities
 
 | Responsibility            | Description                                                      |
-| ------------------------- | ---------------------------------------------------------------- |
+|---------------------------|------------------------------------------------------------------|
 | Google Routes API request | Uses `fieldMask` to reduce cost and return structured route data |
 | Polyline decoding         | Converts encoded polyline to coordinate list                     |
 | Country detection         | Reverse-geocodes sampled polyline points                         |
@@ -26,9 +25,9 @@ Handles all communication with **Google Routes API** and performs route normaliz
 | Caching                   | Uses `GoogleRouteCache` to prevent repeated API calls            |
 | Multi-route support       | Returns multiple alternatives when available                     |
 
-### **Key Methods**
+### Key Methods
 
-#### `getRoutes(origin, destination, waypoints)`
+### `getRoutes(origin, destination, waypoints)`
 
 * Generates request body for Google API
 * Resolves cache key (SHA-256)
@@ -36,7 +35,7 @@ Handles all communication with **Google Routes API** and performs route normaliz
 * Otherwise fetches fresh routes
 * Parses into internal format
 
-#### `parseRoutesResponse(response)`
+### `parseRoutesResponse(response)`
 
 Normalizes route structure:
 
@@ -52,7 +51,7 @@ Normalizes route structure:
 }
 ```
 
-#### `detectCountriesFromPolyline(polyline)`
+### `detectCountriesFromPolyline(polyline)`
 
 * Samples polyline every N points
 * Uses Google Geocoding API
@@ -60,28 +59,26 @@ Normalizes route structure:
 
 ---
 
-# **2. Cost Service**
+## 2. Cost Service
 
 Source: `costService.js`
 
-
-### **Purpose**
+### Purpose
 
 Central orchestrator for cost computation: **fuel**, **tolls**, and **total trip cost**.
 
-### **Responsibilities**
+### Responsibilities
 
-| Function                  | Description                                  |
-| ------------------------- | -------------------------------------------- |
-| Fuel cost computation     | Uses vehicle consumption + fuel prices       |
-| Toll cost computation     | Delegates to tollService                     |
-| Total cost aggregation    | Combines fuel + toll cost                    |
-| Alternative route ranking | Identifies fastest and cheapest route        |
-| Trip saving               | Stores trip in DB when user is authenticated |
+| Function                  | Description                            |
+|---------------------------|----------------------------------------|
+| Fuel cost computation     | Uses vehicle consumption + fuel prices |
+| Toll cost computation     | Delegates to tollService               |
+| Total cost aggregation    | Combines fuel + toll cost              |
+| Alternative route ranking | Identifies fastest and cheapest route  |
 
-### **Key Methods**
+### Key Methods
 
-#### `calculateRouteCost(route, vehicle)`
+### `calculateRouteCost(route, vehicle)`
 
 Computes:
 
@@ -90,7 +87,7 @@ Computes:
 * toll cost
 * total cost
 
-#### `compareRoutes(routes)`
+### `compareRoutes(routes)`
 
 Adds:
 
@@ -104,32 +101,31 @@ Adds:
 
 ---
 
-# **3. Fuel Price Service**
+## 3. Fuel Price Service
 
 Source: `fuelPriceService.js`
 
-
-### **Purpose**
+### Purpose
 
 Retrieves fuel prices for route countries and normalizes fuel types and country codes.
 
-### **Responsibilities**
+### Responsibilities
 
 | Responsibility          | Description                                 |
-| ----------------------- | ------------------------------------------- |
+|-------------------------|---------------------------------------------|
 | ISO2 → ISO3 conversion  | Converts country codes for DB lookups       |
 | Fuel type normalization | petrol → gasoline, diesel → diesel          |
 | Single-country lookup   | Returns price per liter                     |
 | Multi-country lookup    | Returns list of `{ country, price }` values |
 | Initialization          | Creates default prices if DB empty          |
 
-### **Key Methods**
+### Key Methods
 
-#### `getFuelPrice(countryCode, fuelType)`
+### `getFuelPrice(countryCode, fuelType)`
 
 Returns a single price in €/L.
 
-#### `getFuelPrices(countries, fuelType)`
+### `getFuelPrices(countries, fuelType)`
 
 Returns array:
 
@@ -141,62 +137,60 @@ Returns array:
 
 ---
 
-# **4. Vehicle Service**
+## 4. Vehicle Service
 
 Source: `vehicleService.js`
 
-
-### **Purpose**
+### Purpose
 
 CRUD operations for vehicles stored in MongoDB.
 
-### **Responsibilities**
+### Responsibilities
 
 | Responsibility         | Description                      |
-| ---------------------- | -------------------------------- |
+|------------------------|----------------------------------|
 | Fetch all vehicles     | Used for vehicle selection UI    |
 | Fetch by ID            | Required for cost engine         |
 | Create vehicle         | Admin or extension purposes      |
 | Update vehicle         | Modify existing vehicle          |
 | Default initialization | Creates baseline vehicle dataset |
 
-### **Key Methods**
+### Key Methods
 
-#### `getAllVehicles()`
+### `getAllVehicles()`
 
 Returns all predefined vehicles.
 
-#### `getVehicleById(id)`
+### `getVehicleById(id)`
 
 Fetches vehicle for a cost calculation request.
 
-#### `initializeDefaultVehicles()`
+### `initializeDefaultVehicles()`
 
 Creates initial dataset if DB empty.
 
 ---
 
-# **5. Toll Service**
+## 5. Toll Service
 
 Source: `tollService.js`
 
-
-### **Purpose**
+### Purpose
 
 Computes toll cost using multiple data sources with fallback logic.
 
-### **Responsibilities**
+### Responsibilities
 
 | Level                     | Description                      |
-| ------------------------- | -------------------------------- |
+|---------------------------|----------------------------------|
 | 1. TollGuru API           | Primary external toll estimation |
 | 2. Google Estimated Price | Uses `estimatedPrice` field      |
 | 3. Google leg tollInfo    | Extracts from individual legs    |
 | 4. EU fallback model      | Distance-based & vignette rules  |
 
-### **Key Methods**
+### Key Methods
 
-#### `estimateTolls(route)`
+### `estimateTolls(route)`
 
 Returns:
 
@@ -210,36 +204,35 @@ Returns:
 
 ---
 
-# **6. TollGuru Service**
+## 6. TollGuru Service
 
 Source: `tollGuruService.js`
 
-
-### **Purpose**
+### Purpose
 
 Thin client around TollGuru API with built-in caching.
 
-### **Responsibilities**
+### Responsibilities
 
 | Responsibility         | Description               |
-| ---------------------- | ------------------------- |
+|------------------------|---------------------------|
 | Polyline hashing       | SHA-256(polyline)         |
 | Cache lookup           | Uses `TollCache`          |
 | API call               | POST request to TollGuru  |
 | Currency normalization | Converts all to EUR       |
 | Error fallback         | Returns `null` on failure |
 
-### **Key Methods**
+### Key Methods
 
-#### `getTollEstimate(polyline)`
+### `getTollEstimate(polyline)`
 
 Returns toll breakdown or `null` if API unavailable.
 
 ---
 
-# **7. Shared Utilities & Caches**
+## 7. Shared Utilities & Caches
 
-### **7.1 GoogleRouteCache**
+### 7.1 GoogleRouteCache
 
 Stores:
 
@@ -248,7 +241,7 @@ Stores:
 * tollInfo
 * TTL ≈ 60 days
 
-### **7.2 TollCache**
+### 7.2 TollCache
 
 Stores:
 
@@ -257,7 +250,7 @@ Stores:
 * Breakdown
 * TTL ≈ 180 days
 
-### **7.3 FuelPrice Collection**
+### 7.3 FuelPrice Collection
 
 Stores normalized:
 
@@ -268,10 +261,10 @@ Stores normalized:
 
 ---
 
-# **8. Error Handling Strategy**
+## 8. Error Handling Strategy
 
 | Issue               | Mitigation                           |
-| ------------------- | ------------------------------------ |
+|---------------------|--------------------------------------|
 | Google API failure  | Fallback to cache or fail fast       |
 | TollGuru error      | Use Google → fallback model          |
 | Missing fuel prices | Fuel cost returns 0 for that country |
@@ -282,7 +275,7 @@ All services fail gracefully and preserve system stability.
 
 ---
 
-# **9. Summary**
+## 9. Summary
 
 Vicatomaps service layer is designed as a modular, reusable architecture:
 
@@ -295,4 +288,3 @@ Vicatomaps service layer is designed as a modular, reusable architecture:
 
 This modular approach keeps the system maintainable, scalable, and extendable for future features like:
 dynamic fuel price weighting, polyline-based fuel segmentation, machine-learning cost prediction, etc.
-
