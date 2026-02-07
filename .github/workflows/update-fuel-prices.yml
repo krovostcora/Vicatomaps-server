@@ -1,47 +1,47 @@
-name: Update Fuel Prices Weekly
+# name: Update Fuel Prices Weekly
 
-# When to run
-on:
-  schedule:
-    # Every Sunday at 12:06 UTC
-    - cron: '6 12 * * 0'
-  # Allows manual trigger from Actions tab
-  workflow_dispatch:
+# # When to run
+# on:
+#   schedule:
+#     # Every Sunday at 12:06 UTC
+#     #- cron: '6 12 * * 0'
+#   # Allows manual trigger from Actions tab
+#   workflow_dispatch:
 
-# What to do
-jobs:
-  update-fuel-prices:
-    runs-on: ubuntu-latest
+# # What to do
+# jobs:
+#   update-fuel-prices:
+#     runs-on: ubuntu-latest
 
-    steps:
-      # Step 1: Wake up Render server
-      - name: Wake up Render server
-        run: |
-          echo "Waking up server..."
-          curl -X GET https://vicatomaps-server.onrender.com/api/health || true
-          echo "Waiting 60 seconds for server to fully start..."
-          sleep 60
+#     steps:
+#       # Step 1: Wake up Render server
+#       - name: Wake up Render server
+#         run: |
+#           echo "Waking up server..."
+#           curl -X GET https://vicatomaps-server.onrender.com/api/health || true
+#           echo "Waiting 60 seconds for server to fully start..."
+#           sleep 60
 
-      # Step 2: Trigger fuel price update
-      - name: Update fuel prices
-        run: |
-          echo "Triggering fuel price update..."
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X GET https://vicatomaps-server.onrender.com/api/admin/fuel/update)
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | head -n-1)
+#       # Step 2: Trigger fuel price update
+#       - name: Update fuel prices
+#         run: |
+#           echo "Triggering fuel price update..."
+#           RESPONSE=$(curl -s -w "\n%{http_code}" -X GET https://vicatomaps-server.onrender.com/api/admin/fuel/update)
+#           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+#           BODY=$(echo "$RESPONSE" | head -n-1)
           
-          echo "Response: $BODY"
-          echo "HTTP Status: $HTTP_CODE"
+#           echo "Response: $BODY"
+#           echo "HTTP Status: $HTTP_CODE"
           
-          if [ "$HTTP_CODE" -ne 200 ]; then
-            echo "Update failed with status $HTTP_CODE"
-            exit 1
-          fi
+#           if [ "$HTTP_CODE" -ne 200 ]; then
+#             echo "Update failed with status $HTTP_CODE"
+#             exit 1
+#           fi
           
-          echo "Fuel prices updated successfully!"
+#           echo "Fuel prices updated successfully!"
 
-      # Step 3: Verify update
-      - name: Verify update status
-        run: |
-          echo "Checking fuel price status..."
-          curl -X GET https://vicatomaps-server.onrender.com/api/admin/fuel/status
+#       # Step 3: Verify update
+#       - name: Verify update status
+#         run: |
+#           echo "Checking fuel price status..."
+#           curl -X GET https://vicatomaps-server.onrender.com/api/admin/fuel/status
